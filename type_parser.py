@@ -3,22 +3,23 @@ import re, sys
 from cPickle import dump, load
 
 class Type:
+    "BaseClass for all Types"
     name = None
     base = None
     lock = False
     depth = 0
     printed = False
     def __init__(self, info, type_list=None):
+	"initialize a new type. give it some info in a dictionary and a reference type_list"
         self.id = info['id']
         if "name" in info:
             self.name = ':' in info["name"] and info["name"].rsplit(':', 1)[1][1:] or info['name']
         if "type" in info:
             self.base = int(info["type"][1:-1], 16)
         self.type_list = type_list
-        #print id, info
-#        if self.name:
-#            print "new type: %s" % self
+
     def setDepth(self, depth):
+	"recursively enumerate structure depths. prevents cycles using the lock"
         ret = False
         if self.lock: return False
         self.lock = True
@@ -30,22 +31,33 @@ class Type:
         self.lock = False
         return ret
     def __cmp__(self, other, depth=0):
+	"compare this to another type. returns 0 if (we think that) the types are the same"
         ret = cmp(self.id, other.id)
         if ret == 0 or depth>2: return 0 #quick exit, if we know (or feel) we are the same…
+	
         ret = cmp(self.name, other.name)
-        if ret != 0: return ret
+        if ret != 0: return ret #not same name?
+	
         if hasattr(self, "size") and hasattr(other, "size"):
             ret = cmp(self.size, other.size)
-        if ret != 0: return ret
+        if ret != 0: return ret #not same size?
+	
+	#if there is a lock we entered a circle and should assume both types
+	#are the same.
+	#TODO: check if this is really true or if there are some border conditions
         if self.lock or other.lock: return 0
         self.lock = True
+	
+	#recursively check base types
         if self.base in self.type_list and other.base in self.type_list:
             ret = self.type_list[self.base].__cmp__(self.type_list[other.base], depth+1)
         else:
             ret = cmp(self.base, other.base)
+	
         self.lock = False
         return ret
     def value(self, loc, depth=0):
+	"assume memory at location loc is of our type, output its value"
         if depth > 2: return "<unresolved @%x>" % loc
         if self.base:
             return self.types[self.base].value(loc, depth+1)
@@ -54,6 +66,7 @@ class Type:
         if self.base in self.type_list:
             self.base = self.type_list[self.base].id
     def __str__(self, depth=0):
+	"return a string representation of the type"
         out = self.name and self.name or "[unknown:%x]" % self.id
         if self.printed or self.lock or depth > 3: return "<%s…>" % out
         self.lock = True
@@ -68,6 +81,7 @@ class Type:
         #self.printed = True
         return "<"+out+">"
 class SizedType(Type):
+    "This is a Type with size-information associated"
     size = 0
     def __init__(self, info, types=None):
         Type.__init__(self, info, types)
@@ -75,11 +89,13 @@ class SizedType(Type):
             self.size = int(info["byte_size"])
 
 class Member(SizedType):
+    "This is a StructureMember"
     def __init__(self, info, type_list=None):
         self.offset = info.get('data_member_location', 0)
         SizedType.__init__(self, info, type_list)
 
 class Struct(SizedType):
+    "This type represents a C-structure"
     def __init__(self, info, types=None):
         self.members = []
         SizedType.__init__(self, info, types)
@@ -128,12 +144,15 @@ class Struct(SizedType):
     def __str__(self, depth=0):
         return "struct %s {\n%s}" % (self.name, self.stringy(depth))
 class Union(Struct):
+    "This type represents a C-union structure."
     def __str__(self, depth=0):
         return "union %s {\n%s}" % (self.name, self.stringy(depth))
 
 class Array(Type):
+    "Represents an Array. Including the upper bound"
     bound = None
     def append(self, type):
+	"append a Subrange-Type. copies the bound-value which is all we want to now"
         self.bound = type.bound
     def __str__(self,depth=0):
         out = Type.__str__(self, depth)[1+len("[unknown:%x]"%self.id):]
@@ -144,6 +163,7 @@ class Function(Type):
         return "%s()" % self.name
 
 class BaseType(SizedType):
+    "This is for real base-types like unsigned int"
     encoding = 0
     def __init__(self, info, type_list):
         SizedType.__init__(self, info, type_list)
@@ -166,6 +186,7 @@ class Variable(Type):
 class Pointer(SizedType):
     pass
 class Subrange(Type):
+    "ArraySubrange-Type for use with Array. Holds bounds information"
     bound = None
     def __init__(self, info, type_list):
         Type.__init__(self, info, type_list)
@@ -189,33 +210,46 @@ def cleanup(types):
     #dump(types, open("data.dump","w"))
 
 def read_types(f):
+    """"
+    read file f which is the output of `objdump -d kernel' and parse its structures.
+    returns two dictionaries: (memory, types)
+    memory holds memory locations
+    types contains all type information.
+    both need to be cleaned up in order to reduce memory footprint, because they include
+    many redundant information
+    """
+    
+    #regular expression patterns
     pat = re.compile('(<\d>)?<([0-9a-f]+)>:?\s*(.+?)\s*: (.+)')
     pat2= re.compile('DW_(AT|TAG)_(\w+)')
     pat3= re.compile('DW_OP_addr: ([a-f0-9]+)')
     info = {}
     types = {}
     baseType = None
+    
+    #which Class corresponds to which tag-value
     classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable}
+    #which tag-values to ignore
     ignores = {'formal_parameter': 1, 'subprogram': 1, 'inlined_subroutine': 1, 'lexical_block': 1}
     i = 0
     memory = {}
     skippy = False
     stack = [None for i in range(10)]
     this = None
+    
     for line in f:
         i += 1
         if i % 1000 == 0:
             sys.stderr.write("%d\t%d\r" % (i,len(types)))
         if i % 10000000 == 0:
             cleanup(types) #takes long, but needed to reduce ram-usage
-        #if i > 5000000: break
         
-        ret = pat.search(line.strip())
+	ret = pat.search(line.strip())
         if not ret:
             #print "dbg: no-match: %s" % line,
             continue
         
-        head, pos, a, b = ret.groups()
+        head, pos, a, b = ret.groups() #match each line
         pos = int(pos, 16) #binary position in file used to index types
         if head: #subtype or alike
             tag = pat2.search(b).group(2)
