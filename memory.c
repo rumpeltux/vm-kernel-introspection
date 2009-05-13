@@ -1,29 +1,72 @@
 #include <Python.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <sys/types.h>
 
 PyDoc_STRVAR(memory__doc__,        "Arbitrary Memory Access Module");
-PyDoc_STRVAR(memory_map__doc__,    "map the target memory");
+PyDoc_STRVAR(memory_map__doc__,    "filename -> open filename for access");
 PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
+
+#define MAP_SIZE ((size_t) 1 << 31)
+#define PAGE_SIZE ((size_t) 1 << 12)
+#define PAGE_ALIGN(x) ((x) & ~0xfff)
+#define PAGE_OFFSET(x) ((x) & 0xfff)
+int map_fd = -1;
+void * memory = NULL;
+unsigned long long current_map_addr = 0;
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
-    const char *command;
-    //int sts;
+    char * filename;
 
-    if (!PyArg_ParseTuple(args, "s", &command))
+    if (!PyArg_ParseTuple(args, "s", &filename))
         return NULL;
-    //sts = map(command);
-    return Py_BuildValue("s", command);
+    
+    if(map_fd != -1) { /* there is already another mapping. clear it first */
+      if(memory) {
+	munmap(memory, PAGE_SIZE);
+	memory = NULL;
+      }
+      close(map_fd);
+    }
+    map_fd = open(filename, O_RDONLY, 0);
+    if(map_fd == -1)
+        return Py_BuildValue("s", strerror(errno));
+    
+    return Py_BuildValue(""); // None == Success
 }
 
 static PyObject * py_memory_access(PyObject *self, PyObject *args)
 {
     char type;
+    unsigned long long address;
     void * addr;
 
-    if (!PyArg_ParseTuple(args, "bk", &type, (unsigned long long) &addr))
+    if (!PyArg_ParseTuple(args, "bk", &type, &address))
         return NULL;
     
-    printf("accessing %d at %p\n", type, addr);
+    if(map_fd == -1)
+        return Py_BuildValue("s", "no file yet open"); // not yet mapped
+
+    //if(address > MAP_SIZE)
+    //    return Py_BuildValue("s", "out of area"); // out of area
+
+    if(!memory || current_map_addr != PAGE_ALIGN(address))
+    {
+      if(memory)
+	munmap(memory, PAGE_SIZE);
+      memory = mmap(NULL, PAGE_SIZE, PROT_READ, MAP_SHARED, map_fd, PAGE_ALIGN(address));
+      if(memory == MAP_FAILED)
+	return Py_BuildValue("s", strerror(errno));
+      current_map_addr = PAGE_ALIGN(address);
+    }
+    
+    addr = memory + PAGE_OFFSET(address);
+    
+    printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
+    
     /* TODO do mapping and stuff */
     switch(type) {
     case 0:  return Py_BuildValue("B", *(unsigned char   *)addr);
@@ -53,6 +96,3 @@ initmemory(void)
 {
 	Py_InitModule3("memory", memory_methods, memory__doc__);
 }
-
-
-

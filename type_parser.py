@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re, sys
 from cPickle import dump, load
+import memory
 
 class Type:
     "BaseClass for all Types"
@@ -32,11 +33,14 @@ class Type:
         return ret
     def __cmp__(self, other, depth=0):
 	"compare this to another type. returns 0 if (we think that) the types are the same"
-        ret = cmp(self.id, other.id)
+	ret = cmp(self.id, other.id)
         if ret == 0 or depth>2: return 0 #quick exit, if we know (or feel) we are the same…
 	
         ret = cmp(self.name, other.name)
         if ret != 0: return ret #not same name?
+
+	ret = cmp(self.__class__, other.__class__)
+	if ret != 0: return ret #not the same type-class?
 	
         if hasattr(self, "size") and hasattr(other, "size"):
             ret = cmp(self.size, other.size)
@@ -55,16 +59,18 @@ class Type:
             ret = cmp(self.base, other.base)
 	
         self.lock = False
+
         return ret
     def value(self, loc, depth=0):
 	"assume memory at location loc is of our type, output its value"
-        if depth > 2: return "<unresolved @%x>" % loc
+        if depth > 4: return "<unresolved @%x>" % loc
+	print "type", self.name, self.id, loc
         if self.base:
-            return self.types[self.base].value(loc, depth+1)
+            return self.type_list[self.base].value(loc, depth+1)
         return self.name and self.name or "[unknown:%x]" % self.id
     def clean(self):
-        if self.base in self.type_list:
-            self.base = self.type_list[self.base].id
+        while self.base in self.type_list and self.type_list[self.base].id != self.base:
+	    self.base = self.type_list[self.base].id
     def __str__(self, depth=0):
 	"return a string representation of the type"
         out = self.name and self.name or "[unknown:%x]" % self.id
@@ -117,15 +123,18 @@ class Struct(SizedType):
     def clean(self):
         Type.clean(self)
         for i in range(0, len(self.members)):
-            self.members[i] = self.type_list[self.members[i]].id
+	    while self.type_list[self.members[i]].id != self.members[i]:
+	      self.members[i] = self.type_list[self.members[i]].id
     def _value(self, loc, depth=0):
+	print "struct %s" % self.name, self.id, loc
         out = ""
         for member in self.members:
             member = self.type_list[member]
-            out += member.value(loc + member.offset, depth+1).replace("\n","\n\t") + "\n"
+	    print repr(member), repr(member.offset)
+            out += "\n" + member.value(loc + member.offset, depth+1).replace("\n","\n\t") + "\n"
         return out
     def value(self, loc, depth=0):
-        return "struct %s {\n%s}" % (self.name, self._value(depth))
+        return "struct %s {\n%s}" % (self.name, self._value(loc, depth))
     def __cmp__(self, other, depth=0):
         ret = cmp(self.id, other.id)
         if ret == 0 or depth>2: return 0 #quick exit, if we know (or feel) we are the same…
@@ -147,6 +156,8 @@ class Union(Struct):
     "This type represents a C-union structure."
     def __str__(self, depth=0):
         return "union %s {\n%s}" % (self.name, self.stringy(depth))
+    def value(self, loc, depth=0):
+	return "TODO union (%s)" % self.name
 
 class Array(Type):
     "Represents an Array. Including the upper bound"
@@ -157,18 +168,40 @@ class Array(Type):
     def __str__(self,depth=0):
         out = Type.__str__(self, depth)[1+len("[unknown:%x]"%self.id):]
         return "<Array[%s]" % self.bound + out
+    def value(self, loc, depth=0):
+	ret = "%s {" % self.name
+	base = self.type_list[self.base]
+	for i in range(self.bound):
+	  ret += "\t[%d]: " + base.value(loc + base.size*i, depth+1).replace("\n", "\n\t") + "\n"
+	return ret + "}"
 
 class Function(Type):
     def __str__(self, depth=0):
         return "%s()" % self.name
+    def value(self, loc, depth=0):
+	return "TODO func (%s())" % self.name
 
+base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
 class BaseType(SizedType):
-    "This is for real base-types like unsigned int"
+    """
+    This is for real base-types like unsigned int
+    
+    encodings:
+    2	(boolean)
+    4	(float)
+    5	(signed)
+    6	(signed char)
+    7	(unsigned)
+    8	(unsigned char)
+    """
     encoding = 0
     def __init__(self, info, type_list):
         SizedType.__init__(self, info, type_list)
         if "encoding" in info:
             self.encoding = int(info["encoding"][:2])
+    def value(self, loc, depth=0):
+        return str(memory.access(base_type_to_memory["%s-%d" % (self.name, self.encoding)], loc))
+
 class Enum(Type):
     enums = {}
     def append(self, enum):
@@ -210,7 +243,7 @@ def cleanup(types):
     #dump(types, open("data.dump","w"))
 
 def read_types(f):
-    """"
+    """
     read file f which is the output of `objdump -d kernel' and parse its structures.
     returns two dictionaries: (memory, types)
     memory holds memory locations
@@ -228,7 +261,7 @@ def read_types(f):
     baseType = None
     
     #which Class corresponds to which tag-value
-    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable}
+    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable, 'base_type': BaseType}
     #which tag-values to ignore
     ignores = {'formal_parameter': 1, 'subprogram': 1, 'inlined_subroutine': 1, 'lexical_block': 1}
     i = 0
@@ -296,30 +329,43 @@ def read_types(f):
         if ret:
             info[ret.group(2)] = b
         
-    return memory, types
+    return types, memory
 
 def create_initial_dump(in_file, out_file):
     ret = read_types(open(in_file))
+    print "dumping"
     dump(ret, open(out_file, "w"))
+    return ret
 
-def clean_initial_dump(name):
+def clean_initial_dump(name, ret=None):
     "removes any ids, that are not needed for task-fullfillment"
     print "load dump"
-    types, memory = load(open(name))
+    if ret:
+      types, memory = ret
+      print "skipped"
+    else:
+      types, memory = load(open(name))
+      #memory, types = load(open(name))
 
     print "validate model"
-    for id, typ in types.iteritems():
-        try:
-            if types[typ.id].id != typ.id:
-                types[typ.id] = typ
-        except AttributeError, e:
-            print id, repr(typ), typ
+    try:
+      for id, typ in types.iteritems():
+	if types[typ.id].id != typ.id:
+	    print "weirdo", typ.id, repr(types[typ.id]), types[typ.id]
+	    types[typ.id] = typ
+    except AttributeError, e:
+        print "at-error", id, repr(typ), typ
             
-    print "removing duplicates"
+    print "removing duplicates",
     tmp = []
-    for id, typ in types.iteritems():
-        if typ.id == id:
-            tmp.append(id)
+    try:
+      for id, typ in types.iteritems():
+	  if typ.id == id:
+            tmp.append(typ)
+    except AttributeError, e:
+	  print id, repr(typ), typ, e
+
+    print len(tmp), "elements"
     tmp.sort()
     dups = 0
     for i in range(1, len(tmp)):
@@ -337,20 +383,27 @@ def clean_initial_dump(name):
     
     print "clean types"
     #clean all known types
+    dups = 0
     for id, typ in types.iteritems():
         if typ.id == id:
             typ.clean()
+	    dups += 1
+    print dups, "types cleaned"
     
     print "clean memory"
     for loc,id in memory.iteritems():
-        if types[id].id != id:
+        while types[id].id != id:
             memory[loc] = types[id].id
+	    id = types[id].id
     
     print "clean references"
     #remove now unreferenced types
+    dups = 0
     for id in types.keys():
         if types[id].id != id:
             del types[id]
+	    dups += 1
+    print dups, "obselete types removed"
 
     print "saving dump"
     dump((types, memory), open(name+"c", "w"))
@@ -376,13 +429,14 @@ if __name__ == "__main__":
     
     def load_and_init():
         types, memory = load(open(DUMP_FILENAME+"c"))
-        for i in memory:
+	for i in memory:
             types[memory[i]].setDepth(0)
         return types, memory
     if len(sys.argv) < 2:
         print "%s (init|clean|print|state|load)" % sys.argv[0]
+	sys.exit(0)
     if sys.argv[1] == "init":
-        create_initial_dump(sys.argv[2], DUMP_FILENAME)
+        clean_initial_dump(DUMP_FILENAME, create_initial_dump(sys.argv[2], DUMP_FILENAME))
     elif sys.argv[1] == "clean":
         types, memory = clean_initial_dump(DUMP_FILENAME)
     elif sys.argv[1] == "print":
