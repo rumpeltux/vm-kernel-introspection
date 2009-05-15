@@ -31,6 +31,9 @@ class Type:
             self.type_list[self.base].setDepth(depth+1)
         self.lock = False
         return ret
+    def resolve(self, loc=None, depth=0):
+	"resolve the type"
+	return (self, loc)
     def __cmp__(self, other, depth=0):
 	"compare this to another type. returns 0 if (we think that) the types are the same"
 	ret = cmp(self.id, other.id)
@@ -63,10 +66,11 @@ class Type:
         return ret
     def value(self, loc, depth=0):
 	"assume memory at location loc is of our type, output its value"
-        if depth > 4: return "<unresolved @%x>" % loc
+        if depth > 5: return "<unresolved @%x>" % loc
 	print "type", self.name, self.id, loc
         if self.base:
-            return self.type_list[self.base].value(loc, depth+1)
+	    type, val = self.type_list[self.base].value(loc, depth+1)
+            return (type, "%s: " % self.name + str(val))
         return self.name and self.name or "[unknown:%x]" % self.id
     def clean(self):
         while self.base in self.type_list and self.type_list[self.base].id != self.base:
@@ -86,6 +90,8 @@ class Type:
         self.lock = False
         #self.printed = True
         return "<"+out+">"
+    def __repr__(self):
+	return "<%s instance '%s'>" % (self.__class__, self.name)
 class SizedType(Type):
     "This is a Type with size-information associated"
     size = 0
@@ -93,12 +99,6 @@ class SizedType(Type):
         Type.__init__(self, info, types)
         if "byte_size" in info:
             self.size = int(info["byte_size"])
-
-class Member(SizedType):
-    "This is a StructureMember"
-    def __init__(self, info, type_list=None):
-        self.offset = info.get('data_member_location', 0)
-        SizedType.__init__(self, info, type_list)
 
 class Struct(SizedType):
     "This type represents a C-structure"
@@ -127,14 +127,18 @@ class Struct(SizedType):
 	      self.members[i] = self.type_list[self.members[i]].id
     def _value(self, loc, depth=0):
 	print "struct %s" % self.name, self.id, loc
-        out = ""
+	out = ""
         for member in self.members:
-            member = self.type_list[member]
-	    print repr(member), repr(member.offset)
-            out += "\n" + member.value(loc + member.offset, depth+1).replace("\n","\n\t") + "\n"
+            real_member = self.type_list[member]
+	    offset = real_member.offset
+	    member, member_loc = real_member.resolve(loc, depth+1)
+	    print repr(member), repr(offset)
+	    type, val = member.value(member_loc, depth+1)
+            out += "\t%s(%s) %s = " % (member.name, type, real_member.name) + str(val).replace("\n","\n\t") + "\n"
         return out
     def value(self, loc, depth=0):
-        return "struct %s {\n%s}" % (self.name, self._value(loc, depth))
+	if depth > 2: return ("struct", "struct %s { … }" % self.name)
+        return ("struct", "struct %s {\n%s}" % (self.name, self._value(loc, depth)))
     def __cmp__(self, other, depth=0):
         ret = cmp(self.id, other.id)
         if ret == 0 or depth>2: return 0 #quick exit, if we know (or feel) we are the same…
@@ -152,12 +156,13 @@ class Struct(SizedType):
         return ret
     def __str__(self, depth=0):
         return "struct %s {\n%s}" % (self.name, self.stringy(depth))
+
 class Union(Struct):
     "This type represents a C-union structure."
     def __str__(self, depth=0):
         return "union %s {\n%s}" % (self.name, self.stringy(depth))
     def value(self, loc, depth=0):
-	return "TODO union (%s)" % self.name
+	return ("union", "TODO union (%s)" % self.name)
 
 class Array(Type):
     "Represents an Array. Including the upper bound"
@@ -169,17 +174,24 @@ class Array(Type):
         out = Type.__str__(self, depth)[1+len("[unknown:%x]"%self.id):]
         return "<Array[%s]" % self.bound + out
     def value(self, loc, depth=0):
-	ret = "%s {" % self.name
-	base = self.type_list[self.base]
+	if not self.bound: return (None, "corrupted type: %d, %s" % (self.id, self))
+	ret = "%s {\n" % self.name
+	base =  self.type_list[self.base]
+	
+	#do not resolve. only look for size
+	while not hasattr(base, "size"):
+	  base = self.type_list[base.base]
+	
 	for i in range(self.bound):
-	  ret += "\t[%d]: " + base.value(loc + base.size*i, depth+1).replace("\n", "\n\t") + "\n"
-	return ret + "}"
+	  type, val = base.value(loc + base.size*i, depth+1)
+	  ret += "\t[%d]: %s = %s\n" % (i, type, str(val).replace("\n", "\n\t"))
+	return ("array", ret + "}")
 
 class Function(Type):
     def __str__(self, depth=0):
         return "%s()" % self.name
     def value(self, loc, depth=0):
-	return "TODO func (%s())" % self.name
+	return ("function", "TODO func (%s())" % self.name)
 
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
 class BaseType(SizedType):
@@ -199,14 +211,20 @@ class BaseType(SizedType):
         SizedType.__init__(self, info, type_list)
         if "encoding" in info:
             self.encoding = int(info["encoding"][:2])
+    def get_value(self, loc, mem_type=6): #unsigned long int
+	print "access at", hex(loc), hex( (loc-0xffffffff80000000) % (1 << 64))
+	if loc < 0xffffffff80000000:
+	  raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
+	loc -= 0xffffffff80000000 #__PAGE_OFFSET  
+	return memory.access(mem_type, loc)
     def value(self, loc, depth=0):
-        return str(memory.access(base_type_to_memory["%s-%d" % (self.name, self.encoding)], loc))
+        return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
 
 class Enum(Type):
     enums = {}
     def append(self, enum):
         self.enums[enum.name] = enum.const
-
+    #TODO...
 class Enumerator(Type):
     def __init__(self, info, type_list):
         Type.__init__(self, info, type_list)
@@ -215,9 +233,47 @@ class Enumerator(Type):
         return "%d (%s)" % (self.const, self.name)
             
 class Variable(Type):
-    pass
-class Pointer(SizedType):
-    pass
+    def resolve(self, loc=None, depth=0):
+	return self.type_list[self.base].resolve(loc, depth+1)
+    def value(self, loc, depth=0):
+	return self.type_list[self.base].value(loc, depth+1)
+	
+class Member(Variable):
+    "This is a StructureMember"
+    def __init__(self, info, type_list=None):
+        self.offset = info.get('data_member_location', 0)
+        Variable.__init__(self, info, type_list)
+
+class Pointer(BaseType):
+    def __init__(self, info, type_list):
+	"info can be another type"
+	if isinstance(info, Type):
+	  self.base = info.id
+	  self.type_list = type_list
+	  return
+	
+        BaseType.__init__(self, info, type_list)
+    def resolve(self, loc=None, depth=0):
+	if loc is not None:
+	    loc = self.get_value(loc) # unsigned long
+	
+	if self.base:
+	      return self.type_list[self.base].resolve(loc, depth+1)
+	else:
+	      return self
+    def value(self, loc, depth=0):
+	ptr = self.get_value(loc) # unsigned long
+	if self.base:
+	      return self.type_list[self.base].value(ptr, depth+1)
+	else:
+	      return ("void *", ptr)
+class Typedef(Type):
+    def resolve(self, loc, depth=0):
+	if depth > 20: raise RuntimeError("recursing type...")
+	return self.type_list[self.base].resolve(loc, depth+1)
+    def value(self, loc, depth=0):
+	return self.type_list[self.base].value(loc, depth+1)
+
 class Subrange(Type):
     "ArraySubrange-Type for use with Array. Holds bounds information"
     bound = None
@@ -241,6 +297,50 @@ def cleanup(types):
     del test
     print "removed:", dups
     #dump(types, open("data.dump","w"))
+class Memory:
+    def __init__(self, loc, type):
+	self.loc = loc
+	self.type = type
+    def value(self):
+	#type, loc = self.type.resolve(self.loc)
+	#return type.value(loc)
+	return self.type.value(self.loc)
+    def __getattr__(self, key):
+	this, loc = self.type.resolve(self.loc)
+	print key, repr(this), loc, hex(loc)
+	
+	if not isinstance(this, Struct): return None
+	for i in this.members:
+	    t = this.type_list[i]
+	    if t.name == key:
+		return Memory(loc + t.offset, t)
+	raise KeyError("%s has no attribute %s" % (repr(this), key))
+    def __getitem__(self, idx):
+	this, loc = self.type.resolve(self.loc)
+	if not isinstance(this, Array): return None
+	if idx > this.bound: raise IndexError("out of bounds")
+	type = this.type_list[this.type.base]
+	size_type = type
+	while not hasattr(size_type, "size"):
+	  size_type = this.type_list[size_type.base]
+	return Memory(loc + idx * size_type.size, size_type)
+    def __iter__(self):
+	this, loc = self.type.resolve(self.loc)
+	if isinstance(this, Struct):
+	    for member in this.members:
+		t = this.type_list[member]
+		yield Memory(loc + t.offset, t)
+	elif isinstance(this, Array):
+	    type = this.type_list[this.type.base]
+	    size_type = type
+	    while not hasattr(size_type, "size"):
+		size_type = this.type_list[size_type.base]
+	    for idx in range(this.bound):
+		yield Memory(loc + idx * size_type.size, size_type)
+    def __str__(self):
+	return str(self.value())
+    def __repr__(self):
+	return "<Memory %s @0x%x>" % (repr(self.type), self.loc)
 
 def read_types(f):
     """
@@ -261,7 +361,7 @@ def read_types(f):
     baseType = None
     
     #which Class corresponds to which tag-value
-    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable, 'base_type': BaseType}
+    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable, 'base_type': BaseType, 'typedef': Typedef}
     #which tag-values to ignore
     ignores = {'formal_parameter': 1, 'subprogram': 1, 'inlined_subroutine': 1, 'lexical_block': 1}
     i = 0

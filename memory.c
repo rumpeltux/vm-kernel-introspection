@@ -15,13 +15,13 @@ PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
 #define PAGE_OFFSET(x) ((x) & 0xfff)
 int map_fd = -1;
 void * memory = NULL;
-unsigned long long current_map_addr = 0;
+size_t map_size = 0;
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
     char * filename;
 
-    if (!PyArg_ParseTuple(args, "s", &filename))
+    if (!PyArg_ParseTuple(args, "sk", &filename, &map_size))
         return NULL;
     
     if(map_fd != -1) { /* there is already another mapping. clear it first */
@@ -35,6 +35,10 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     if(map_fd == -1)
         return Py_BuildValue("s", strerror(errno));
     
+    memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, 0);
+    if(memory == NULL || memory == (void *) -1)
+      return Py_BuildValue("s", strerror(errno));
+    
     return Py_BuildValue(""); // None == Success
 }
 
@@ -43,30 +47,27 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     char type;
     unsigned long long address;
     void * addr;
+    char buf[1024];
 
     if (!PyArg_ParseTuple(args, "bk", &type, &address))
         return NULL;
     
-    if(map_fd == -1)
+    if(map_fd == -1 || memord == NULL || memory == (void *) -1)
         return Py_BuildValue("s", "no file yet open"); // not yet mapped
 
-    //if(address > MAP_SIZE)
-    //    return Py_BuildValue("s", "out of area"); // out of area
+    if(address > map_size)
+        return Py_BuildValue("s", "out of area"); // out of area
 
-    if(!memory || current_map_addr != PAGE_ALIGN(address))
-    {
-      if(memory)
-	munmap(memory, PAGE_SIZE);
-      memory = mmap(NULL, PAGE_SIZE, PROT_READ, MAP_SHARED, map_fd, PAGE_ALIGN(address));
-      if(memory == MAP_FAILED)
-	return Py_BuildValue("s", strerror(errno));
-      current_map_addr = PAGE_ALIGN(address);
-    }
-    
-    addr = memory + PAGE_OFFSET(address);
+    addr = memory + address;
     
     printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
-    
+       
+//     {
+//         printf("new pos: %lx\n", lseek(map_fd, address, SEEK_SET));
+// 	if(read(map_fd, buf, 1024) == -1) return Py_BuildValue("s", strerror(errno));
+// 	addr = buf;
+//     }
+// 	
     /* TODO do mapping and stuff */
     switch(type) {
     case 0:  return Py_BuildValue("B", *(unsigned char   *)addr);
