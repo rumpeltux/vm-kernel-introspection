@@ -98,7 +98,11 @@ class SizedType(Type):
     def __init__(self, info, types=None):
         Type.__init__(self, info, types)
         if "byte_size" in info:
-            self.size = int(info["byte_size"])
+            if cmp(info["byte_size"][:2], '0x') == 0:
+	    #    print info, "\n"
+		self.size = int(info["byte_size"], 16)
+	    else:
+            	self.size = int(info["byte_size"])
 
 class Struct(SizedType):
     "This type represents a C-structure"
@@ -214,7 +218,7 @@ class BaseType(SizedType):
     def get_value(self, loc, mem_type=6): #unsigned long int
 	print "access at", hex(loc), hex( (loc-0xffffffff80000000) % (1 << 64))
 	if loc < 0xffffffff80000000:
-	  raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
+		raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
 	loc -= 0xffffffff80000000 #__PAGE_OFFSET  
 	return memory.access(mem_type, loc)
     def value(self, loc, depth=0):
@@ -344,7 +348,7 @@ class Memory:
 
 def read_types(f):
     """
-    read file f which is the output of `objdump -d kernel' and parse its structures.
+    read file f which is the output of `objdump -g kernel' and parse its structures.
     returns two dictionaries: (memory, types)
     memory holds memory locations
     types contains all type information.
@@ -370,11 +374,14 @@ def read_types(f):
     stack = [None for i in range(10)]
     this = None
     
+    # speedup hack
+    # dupcheck = {}
+    
     for line in f:
         i += 1
         if i % 1000 == 0:
             sys.stderr.write("%d\t%d\r" % (i,len(types)))
-        if i % 10000000 == 0:
+        if i % 900000 == 0:
             cleanup(types) #takes long, but needed to reduce ram-usage
         
 	ret = pat.search(line.strip())
@@ -397,7 +404,13 @@ def read_types(f):
                     this = cls(info, types)
                     
                 #save type for its id (id=bin_loc)
-                types[info['id']] = this
+		# speedup hack
+		#tmprepr = this.id
+		#try:
+	#		dupcheck[tmprepr]
+	#	except KeyError: 
+	#		dupcheck[tmprepr] = 1;
+               	types[info['id']] = this
                 
                 #save the location
                 if 'location' in info:
@@ -428,7 +441,7 @@ def read_types(f):
         ret = pat2.search(a)
         if ret:
             info[ret.group(2)] = b
-        
+
     return types, memory
 
 def create_initial_dump(in_file, out_file):
@@ -494,7 +507,7 @@ def clean_initial_dump(name, ret=None):
     for loc,id in memory.iteritems():
         while types[id].id != id:
             memory[loc] = types[id].id
-	    id = types[id].id
+            id = types[id].id
     
     print "clean references"
     #remove now unreferenced types

@@ -16,6 +16,7 @@ PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
 int map_fd = -1;
 void * memory = NULL;
 size_t map_size = 0;
+off_t map_base = 0;
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
@@ -35,7 +36,7 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     if(map_fd == -1)
         return Py_BuildValue("s", strerror(errno));
     
-    memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, 0);
+    memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, map_base);
     if(memory == NULL || memory == (void *) -1)
       return Py_BuildValue("s", strerror(errno));
     
@@ -52,13 +53,26 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "bk", &type, &address))
         return NULL;
     
-    if(map_fd == -1 || memord == NULL || memory == (void *) -1)
+    if(map_fd == -1 || memory == NULL || memory == (void *) -1)
         return Py_BuildValue("s", "no file yet open"); // not yet mapped
+    
+    // we are above or below the mapped area
+    if(address > (map_base + map_size) || address < map_base) {
+	    off_t oldbase = map_base;
+	    map_base = address - map_size / 2;
+	    map_base = map_base & ~(sysconf(_SC_PAGE_SIZE) - 1);
+	    printf("remapping from base 0x%x to base 0x%x\n", (unsigned int)oldbase, (unsigned int)map_base);
+	    if(memory) {
+		    munmap(memory, PAGE_SIZE);
+		    memory = NULL;
+	    }
+	    memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, map_base);
+	    if(memory == NULL || memory == MAP_FAILED)
+		    return Py_BuildValue("s", strerror(errno));
+    }
+        // return Py_BuildValue("s", "out of area"); // out of area
 
-    if(address > map_size)
-        return Py_BuildValue("s", "out of area"); // out of area
-
-    addr = memory + address;
+    addr = memory + address - map_base;
     
     printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
        
