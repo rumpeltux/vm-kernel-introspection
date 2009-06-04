@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-#import memory
-#print memory.map("/dev/mem")
-#print memory.access(0,0)
-#print open("/proc/self/maps").read()
-
-from type_parser import *
-import type_parser, re
-type_parser.memory.map("/dev/mem")
+from c_types import *
+from memory_manager import *
+import memory, type_parser
+memory.map("/dev/mem")
 types, memory = type_parser.load(open("data.dumpc"))
 
 names = {}
@@ -29,15 +25,19 @@ type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addr(name))
 
-init_mm = kernel_name('init_mm')
-init_mm.pgd.pgd
-print init_mm.pgd.pgd
+if __name__=='__main__':
+  pgt = kernel_name('__ksymtab_init_level4_pgt')
+  print pgt
 
-init_task = kernel_name('init_task')
-for i in init_task:
-  print i.type.name
+  init_mm = kernel_name('init_mm')
+  init_mm.pgd.pgd
+  print init_mm.pgd.pgd
 
-print "out" + repr(init_task.usage)
-print "out" + repr(init_task.usage.counter)
-print init_task.usage.counter
-#print x(0xffffffff8091fdacL).value(0xffffffff8091fdacL)
+  init_task = kernel_name('init_task')
+  for i in init_task:
+    print i.type.name
+
+  print "out" + repr(init_task.usage)
+  print "out" + repr(init_task.usage.counter)
+  print init_task.usage.counter
+  #print x(0xffffffff8091fdacL).value(0xffffffff8091fdacL)
