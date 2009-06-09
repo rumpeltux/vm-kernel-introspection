@@ -17,6 +17,46 @@ int map_fd = -1;
 void * memory = NULL;
 size_t map_size = 0;
 off_t map_base = 0;
+typedef uint64 unsigned long;
+
+#define PAGE_SHIFT 12
+#define PTE_BITS 9
+#define PTE_SHIFT (PAGE_SHIFT+PTE_BITS)
+#define PMD_BITS 9
+#define PMD_SHIFT (PTE_SHIFT+PMD_BITS)
+#ifndef PAE
+#define PUD_BITS 9
+#define PUD_SHIFT (PMD_SHIFT+PUD_BITS)
+#define PGDIR_BITS 7
+#define PGDIR_SHIFT (PUD_SHIFT+PGDIR_BITS)
+#else
+#define PGDIR_BITS 2
+#define PGDIR_SHIFT (PMD_SHIFT+PGDIR_BITS)
+#endif
+
+
+void * address_lookup(void * p, uint64 * pgdir) {
+    /* TODO: Fehlerbehandlung, Flags prüfen (present etc) */
+    uint64 pgd_offset = ((uint64 p) >> (PGDIR_SHIFT-PAGE_SHIFT)) & ((1 << PGDIR_BITS)-1);
+    #ifndef PAE
+      uint64 pud_offset = ((uint64 p) >> (PUD_SHIFT  -PAGE_SHIFT)) & ((1 << PUD_BITS)-1);
+    #endif
+    uint64 pmd_offset = ((uint64 p) >> (PMD_SHIFT  -PAGE_SHIFT)) & ((1 << PMD_BITS)-1);
+    uint64 pte_offset = ((uint64 p) >> (PTE_SHIFT  -PAGE_SHIFT)) & ((1 << PTE_BITS)-1);
+    #ifndef PAE
+      uint64 * pud = pgd[pgd_offset] & ~(PAGE_SIZE-1);
+      printf("  pgt[%ld]: %p\n", pgd_offset, pud);
+      uint64 * pmd = pud[pud_offset] & ~(PAGE_SIZE-1);
+      printf("   pud[%ld]: %p\n", pud_offset, pmd);
+    #else
+      uint64 * pmd = pgd[pgd_offset] & ~(PAGE_SIZE-1);
+    #endif
+    uint64 * pte = pmd[pme_offset] & ~(PAGE_SIZE-1);
+    printf("    pmd[%ld]: %p\n", pmd_offset, pte);
+    void * page  = pte[pte_offset] & ~(PAGE_SIZE-1);
+    printf("     pte[%ld]: %p\n", pte_offset, page);
+    return page;
+}
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
