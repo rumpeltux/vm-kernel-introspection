@@ -17,7 +17,8 @@ int map_fd = -1;
 void * memory = NULL;
 size_t map_size = 0;
 off_t map_base = 0;
-typedef uint64 unsigned long;
+
+typedef unsigned long uint64;
 
 #define PAGE_SHIFT 12
 #define PTE_BITS 9
@@ -25,24 +26,24 @@ typedef uint64 unsigned long;
 #define PMD_BITS 9
 #define PMD_SHIFT (PTE_SHIFT+PMD_BITS)
 #ifndef PAE
-#define PUD_BITS 9
-#define PUD_SHIFT (PMD_SHIFT+PUD_BITS)
-#define PGDIR_BITS 7
-#define PGDIR_SHIFT (PUD_SHIFT+PGDIR_BITS)
+  #define PUD_BITS 9
+  #define PUD_SHIFT (PMD_SHIFT+PUD_BITS)
+  #define PGDIR_BITS 7
+  #define PGDIR_SHIFT (PUD_SHIFT+PGDIR_BITS)
 #else
-#define PGDIR_BITS 2
-#define PGDIR_SHIFT (PMD_SHIFT+PGDIR_BITS)
+  #define PGDIR_BITS 2
+  #define PGDIR_SHIFT (PMD_SHIFT+PGDIR_BITS)
 #endif
 
 
-void * address_lookup(void * p, uint64 * pgdir) {
+void * address_lookup(void * p, uint64 * pgd) {
     /* TODO: Fehlerbehandlung, Flags prüfen (present etc) */
-    uint64 pgd_offset = ((uint64 p) >> (PGDIR_SHIFT-PAGE_SHIFT)) & ((1 << PGDIR_BITS)-1);
+    uint64 pgd_offset = (((uint64) p) >> (PGDIR_SHIFT-PAGE_SHIFT)) & ((1 << PGDIR_BITS)-1);
     #ifndef PAE
-      uint64 pud_offset = ((uint64 p) >> (PUD_SHIFT  -PAGE_SHIFT)) & ((1 << PUD_BITS)-1);
+      uint64 pud_offset = (((uint64) p) >> (PUD_SHIFT  -PAGE_SHIFT)) & ((1 << PUD_BITS)-1);
     #endif
-    uint64 pmd_offset = ((uint64 p) >> (PMD_SHIFT  -PAGE_SHIFT)) & ((1 << PMD_BITS)-1);
-    uint64 pte_offset = ((uint64 p) >> (PTE_SHIFT  -PAGE_SHIFT)) & ((1 << PTE_BITS)-1);
+    uint64 pmd_offset = (((uint64) p) >> (PMD_SHIFT  -PAGE_SHIFT)) & ((1 << PMD_BITS)-1);
+    uint64 pte_offset = (((uint64) p) >> (PTE_SHIFT  -PAGE_SHIFT)) & ((1 << PTE_BITS)-1);
     #ifndef PAE
       uint64 * pud = pgd[pgd_offset] & ~(PAGE_SIZE-1);
       printf("  pgt[%ld]: %p\n", pgd_offset, pud);
@@ -51,12 +52,64 @@ void * address_lookup(void * p, uint64 * pgdir) {
     #else
       uint64 * pmd = pgd[pgd_offset] & ~(PAGE_SIZE-1);
     #endif
-    uint64 * pte = pmd[pme_offset] & ~(PAGE_SIZE-1);
+    uint64 * pte = pmd[pmd_offset] & ~(PAGE_SIZE-1);
     printf("    pmd[%ld]: %p\n", pmd_offset, pte);
     void * page  = pte[pte_offset] & ~(PAGE_SIZE-1);
     printf("     pte[%ld]: %p\n", pte_offset, page);
     return page;
 }
+
+// from crashtool x86_64
+
+#define __START_KERNEL_map  0xffffffff80000000UL
+#define MODULES_LEN     (MODULES_END - MODULES_VADDR)
+
+#define VMALLOC_START       0xffffc20000000000
+#define VMALLOC_END         0xffffe1ffffffffff
+#define USERSPACE_TOP       0x0000800000000000
+#define KERNEL_PAGE_OFFSET  0xffff880000000000
+#define MODULES_VADDR       0xffffffff88000000
+#define MODULES_END         0xfffffffffff00000
+
+#define VMEMMAP_VADDR       0xffffe20000000000
+#define VMEMMAP_END         0xffffe2ffffffffff
+
+#define IS_KVADDR(addr)	    ((addr) >= KERNEL_PAGE_OFFSET)
+
+unsigned long phys_base = 0;
+
+/*
+ *  x86_64 __pa() clone.
+ */
+unsigned long x86_64_VTOP(unsigned long vaddr)
+{
+        if (vaddr >= __START_KERNEL_map)
+                return ((vaddr) - (unsigned long)__START_KERNEL_map + phys_base);
+        else
+                return ((vaddr) - KERNEL_PAGE_OFFSET);
+}
+
+int
+IS_VMALLOC_ADDR(unsigned long vaddr)
+{
+        return ((vaddr >= VMALLOC_START && vaddr <= VMALLOC_END) ||
+                 (vaddr >= VMEMMAP_VADDR && vaddr <= VMEMMAP_END) ||
+                (vaddr >= MODULES_VADDR && vaddr <= MODULES_END));
+}
+
+unsigned long map_kernel_virtual_to_physical(unsigned long virtual) {
+        if(IS_KVADDR(virtual)) {
+                if(!IS_VMALLOC_ADDR(virtual)) {
+                        return x86_64_VTOP(virtual);
+                } else {
+			// use the address_lookup function
+			return 0;
+		}
+        }
+	return 0;
+}
+
+
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
@@ -88,7 +141,7 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     char type;
     unsigned long long address;
     void * addr;
-    char buf[1024];
+    //char buf[1024];
 
     if (!PyArg_ParseTuple(args, "bk", &type, &address))
         return NULL;
@@ -98,10 +151,10 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     
     // we are above or below the mapped area
     if(address > (map_base + map_size) || address < map_base) {
-	    off_t oldbase = map_base;
+	    // off_t oldbase = map_base;
 	    map_base = address - map_size / 2;
 	    map_base = map_base & ~(sysconf(_SC_PAGE_SIZE) - 1);
-	    printf("remapping from base 0x%x to base 0x%x\n", (unsigned int)oldbase, (unsigned int)map_base);
+	    // printf("remapping from base 0x%x to base 0x%x\n", (unsigned int)oldbase, (unsigned int)map_base);
 	    if(memory) {
 		    munmap(memory, PAGE_SIZE);
 		    memory = NULL;
@@ -114,7 +167,7 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
 
     addr = memory + address - map_base;
     
-    printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
+    //printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
        
 //     {
 //         printf("new pos: %lx\n", lseek(map_fd, address, SEEK_SET));

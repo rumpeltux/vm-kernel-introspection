@@ -7,22 +7,41 @@ class Memory:
 	self.__type = type
     def get_type(self):
 	return self.__type
+    def get_loc(self):
+        return self.__loc
+    def get_value(self):
+        return self.__value()
     def __value(self):
-	#type, loc = self.type.resolve(self.loc)
-	#return type.value(loc)
-	return self.__type.value(self.__loc)
+        #type, loc = self.type.resolve(self.loc)
+        #return type.value(loc)
+        return self.__type.value(self.__loc)
+    #    retval = self.get_type().value(self.get_loc())
+    #    return retval
+#    def __int__(self):
+#        retobj = self.__type.value(self.__loc)
+#        typename = type(retobj).__name__
+#        if(typename != 'int' and typename != 'long'):
+#            raise TypeError("%s is not of type int it is of type %s" % (repr(self), type(retobj)))
+#        return retobj
+#    def __float__(self):
+#        retobj = self.__type.value(self.__loc)
+#        typename = type(retobj).__name__
+#        if(typename != 'float' and typename != 'double'):
+#            raise TypeError("%s is not of type float it is of type %s" % (repr(self), type(retobj)))
+#        return retobj
     def __getattr__(self, key):
-	this, loc = self.__type.resolve(self.__loc)
-	print key, repr(this), loc, hex(loc)
+        this, loc = self.__type.resolve(self.__loc)
+        # print key, repr(this), loc, hex(loc)
 	
-	if not isinstance(this, Struct): return None
-	for i in this.members:
-	    t = this.type_list[i]
-	    if t.name == key:
-		return Memory(loc + t.offset, t)
-	raise KeyError("%s has no attribute %s" % (repr(this), key))
+        if not isinstance(this, Struct): return None
+        for i in this.members:
+            t = this.type_list[i]
+            if t.name == key:
+                retval = Memory(loc + t.offset, t)
+                return retval
+        raise KeyError("%s has no attribute %s" % (repr(this), key))
     def __getitem__(self, idx):
-	this, loc = self.type.resolve(self.__loc)
+	this, loc = self.__type.resolve(self.__loc)
 	if not isinstance(this, Array): return None
 	if idx > this.bound: raise IndexError("out of bounds")
 	type = this.type_list[this.type.base]
@@ -31,7 +50,7 @@ class Memory:
 	  size_type = this.type_list[size_type.base]
 	return Memory(loc + idx * size_type.size, size_type)
     def __iter__(self):
-	this, loc = self.type.resolve(self.__loc)
+	this, loc = self.__type.resolve(self.__loc)
 	if isinstance(this, Struct):
 	    for member in this.members:
 		t = this.type_list[member]
@@ -44,6 +63,6 @@ class Memory:
 	    for idx in range(this.bound):
 		yield Memory(loc + idx * size_type.size, size_type)
     def __str__(self):
-	return str(self.value())
+	return str(self.__value())
     def __repr__(self):
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)
