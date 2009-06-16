@@ -43,8 +43,8 @@ class Memory:
     def __getitem__(self, idx):
 	this, loc = self.__type.resolve(self.__loc)
 	if not isinstance(this, Array): return None
-	if idx > this.bound: raise IndexError("out of bounds")
-	type = this.type_list[this.type.base]
+	if this.bound and idx > this.bound: raise IndexError("out of bounds")
+	type = this.type_list[this.base]
 	size_type = type
 	while not hasattr(size_type, "size"):
 	  size_type = this.type_list[size_type.base]

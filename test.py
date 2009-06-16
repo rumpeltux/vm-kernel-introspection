@@ -20,14 +20,40 @@ for k,v in types.iteritems():
         v.offset = int(pat3.search(v.offset).group(1))
 
 type_of_address = lambda y: types[memory[y]]
-cast = lambda memory, type: Memory(memory.loc, type)
+cast = lambda memory, type: Memory(memory.get_loc(), type)
 type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addr(name))
 
+def dump_pagetables(pgt4, filename):
+  f = open(filename, "w")
+  page = lambda x: (x & ~0x8000000000000fff) + 0xffff880000000000
+  is_null = lambda x: x.get_loc() == 0xffff880000000000
+  loc  = lambda x: x.get_loc() - 0xffff880000000000
+  for i in range(512):
+    pud = Memory( page(pgt4[i].pgd.get_value()[1]), type_of('level3_kernel_pgt')) #raw addresses
+    if not is_null(pud):
+      print >>f, "  [%03d] --> %x" % (i, loc(pud))
+      for j in range(512):
+	pmd = Memory( page(pud[j].pud.get_value()[1]), type_of('level2_kernel_pgt'))
+	if not is_null(pmd):
+	  print >>f, "     [%03d] --> %x" % (j, loc(pmd))
+	  for k in range(512):
+	    pte = Memory( page(pmd[k].pmd.get_value()[1]), type_of('level2_kernel_pgt'))
+	    if not is_null(pte) and pmd[k].pmd.get_value()[1] & 0x80 == 0: #skip LARGE PAGES for now
+	      print >>f, "        [%03d] --> %x" % (k, loc(pte))
+	      for l in range(512):
+		if pte[l].pmd.get_value()[1] != 0:
+		  print >>f, "           [%03d] --> %x" % (l, pte[l].pmd.get_value()[1])
+  f.close()
+
+
 if __name__=='__main__':
   pgt = kernel_name('__ksymtab_init_level4_pgt')
-  print pgt
+  pgt_t = cast(pgt.value, Pointer(Array(type_of('long unsigned int'), bound=512))) #eine möglichkeit
+  pgt4  = cast(pgt.value, Pointer(type_of('init_level4_pgt'))) #die andere möglichkeit
+  print pgt_t.get_value()[1]
+  #dump_pagetables(pgt4, "/tmp/pages")
 
   init_mm = kernel_name('init_mm')
   init_mm.pgd.pgd

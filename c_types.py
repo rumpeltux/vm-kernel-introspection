@@ -2,6 +2,21 @@
 import re
 import memory
 
+class Callable:
+    def __init__(self, anycallable):
+        self.__call__ = anycallable
+
+def _new_id(type_list):
+    import random
+    while 1:
+      x = random.randint(0,2**31)
+      if x not in type_list: return x
+
+def new_type(type_list, *args, **kwargs):
+    "hilfsfunktion zum erstellen des dicts für einen neuen typ"
+    kwargs['id'] = _new_id(type_list)
+    return kwargs
+
 class Type:
     "BaseClass for all Types"
     name = None
@@ -78,6 +93,10 @@ class Type:
     def clean(self):
         while self.base in self.type_list and self.type_list[self.base].id != self.base:
 	    self.base = self.type_list[self.base].id
+    def register(self):
+	"if this type is manually added, make it is also registered with a valid id in the global type register"
+	self.id = _new_id(self.type_list)
+	self.type_list[self.id] = self
     def __str__(self, depth=0):
 	"return a string representation of the type"
         out = self.name and self.name or "[unknown:%x]" % self.id
@@ -174,6 +193,16 @@ class Union(Struct):
 class Array(Type):
     "Represents an Array. Including the upper bound"
     bound = None
+    def __init__(self, info, type_list=None, bound=None):
+	"info can be another type"
+	if isinstance(info, Type):
+	  self.base = info.id
+	  self.type_list = info.type_list
+	  self.bound = bound
+	  self.register()
+	  return
+	
+        BaseType.__init__(self, info, type_list)
     def append(self, type):
 	"append a Subrange-Type. copies the bound-value which is all we want to now"
         self.bound = type.bound
@@ -181,17 +210,20 @@ class Array(Type):
         out = Type.__str__(self, depth)[1+len("[unknown:%x]"%self.id):]
         return "<Array[%s]" % self.bound + out
     def value(self, loc, depth=0):
-	if not self.bound: return (None, "corrupted type: %d, %s" % (self.id, self))
+	#if not self.bound: return (None, "corrupted type: %d, %s" % (self.id, self))
 	ret = "%s {\n" % self.name
 	base =  self.type_list[self.base]
+	bound = self.bound
+	if bound is None: bound = 1
 	
 	#do not resolve. only look for size
 	while not hasattr(base, "size"):
 	  base = self.type_list[base.base]
 	
-	for i in range(self.bound):
+	for i in range(bound):
 	  type, val = base.value(loc + base.size*i, depth+1)
 	  ret += "\t[%d]: %s = %s\n" % (i, type, str(val).replace("\n", "\n\t"))
+	if self.bound is None: ret += "\t…\n"
 	return ("array", ret + "}")
 
 class Function(Type):
@@ -257,11 +289,12 @@ class Member(Variable):
         Variable.__init__(self, info, type_list)
 
 class Pointer(BaseType):
-    def __init__(self, info, type_list):
+    def __init__(self, info, type_list=None):
 	"info can be another type"
 	if isinstance(info, Type):
 	  self.base = info.id
-	  self.type_list = type_list
+	  self.type_list = info.type_list
+	  self.register()
 	  return
 	
         BaseType.__init__(self, info, type_list)
@@ -279,6 +312,7 @@ class Pointer(BaseType):
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return ("void *", ptr)
+
 class Typedef(Type):
     def resolve(self, loc, depth=0):
 	if depth > 20: raise RuntimeError("recursing type...")
