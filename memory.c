@@ -8,6 +8,7 @@
 PyDoc_STRVAR(memory__doc__,        "Arbitrary Memory Access Module");
 PyDoc_STRVAR(memory_map__doc__,    "filename -> open filename for access");
 PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
+PyDoc_STRVAR(memory_virt_to_phys__doc__, "virt -> maps kernel virtual address to physical address");
 
 #define MAP_SIZE ((size_t) 1 << 31)
 #define PAGE_SIZE ((size_t) 1 << 12)
@@ -97,19 +98,37 @@ IS_VMALLOC_ADDR(unsigned long vaddr)
                 (vaddr >= MODULES_VADDR && vaddr <= MODULES_END));
 }
 
-unsigned long map_kernel_virtual_to_physical(unsigned long virtual) {
+unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int* errflag) {
         if(IS_KVADDR(virtual)) {
                 if(!IS_VMALLOC_ADDR(virtual)) {
+			*errflag = 0;
                         return x86_64_VTOP(virtual);
                 } else {
 			// use the address_lookup function
+			printf("page table lookups not implemented yet\n");
+			*errflag = 1;
 			return 0;
 		}
         }
+	printf("not a virtual address\n");
+	*errflag = 1;
 	return 0;
 }
 
+static PyObject * py_memory_virt_to_phys(PyObject *self, PyObject *args)
+{
+	unsigned long virt;
+	unsigned long phys;
+	int errflag = 0;
 
+	if(!PyArg_ParseTuple(args, "k", &virt))
+		return NULL;
+	
+	phys = map_kernel_virtual_to_physical(virt, &errflag);
+	if(errflag != 0)
+		return Py_BuildValue("s", "error mapping virtual address");
+	return Py_BuildValue("k", phys);
+}
 
 static PyObject * py_memory_map(PyObject *self, PyObject *args)
 {
@@ -196,6 +215,7 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
 static PyMethodDef memory_methods[] = {
 	{"map",     py_memory_map,    METH_VARARGS, memory_map__doc__},
 	{"access",  py_memory_access, METH_VARARGS, memory_access__doc__},
+	{"virt_to_phys", py_memory_virt_to_phys, METH_VARARGS, memory_virt_to_phys__doc__},
 	{NULL, NULL}      /* sentinel */
 };
 
