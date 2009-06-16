@@ -52,7 +52,7 @@ def read_types(f):
         i += 1
         if i % 1000 == 0:
             sys.stderr.write("%d\t%d\r" % (i,len(types)))
-        if i % 900000 == 0:
+        if i % 13000000 == 0:
             cleanup(types) #takes long, but needed to reduce ram-usage
         
 	ret = pat.search(line.strip())

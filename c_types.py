@@ -219,11 +219,13 @@ class BaseType(SizedType):
         if "encoding" in info:
             self.encoding = int(info["encoding"][:2])
     def get_value(self, loc, mem_type=6): #unsigned long int
-        #print "access at", hex(loc), hex( (loc-0xffffffff80000000) % (1 << 64))
-        if loc < 0xffffffff80000000:
-            raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
-        loc -= 0xffffffff80000000 #__PAGE_OFFSET  
-        return memory.access(mem_type, loc)
+        if loc >= 0xffffffff80000000: #__START_KERNEL_map
+	    loc -= 0xffffffff80000000
+	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
+	    loc -= 0xffff880000000000
+	else:
+	    raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
+	return memory.access(mem_type, loc)
     def value(self, loc, depth=0):
         #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
         return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
