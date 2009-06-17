@@ -157,6 +157,7 @@ class Struct(SizedType):
         for member in self.members:
             real_member = self.type_list[member]
 	    offset = real_member.offset
+	    print offset, real_member.name, real_member.resolve(loc, depth+1)
 	    member, member_loc = real_member.resolve(loc, depth+1)
 	    print repr(member), repr(offset)
 	    type, val = member.value(member_loc, depth+1)
@@ -232,6 +233,10 @@ class Function(Type):
     def value(self, loc, depth=0):
 	return ("function", "TODO func (%s())" % self.name)
 
+class MemoryAccessException(RuntimeError):
+  pass
+class NullPointerException(MemoryAccessException):
+  pass
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
 class BaseType(SizedType):
     """
@@ -258,7 +263,8 @@ class BaseType(SizedType):
 	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
 	    loc -= 0xffff880000000000
 	else:
-	    raise RuntimeError("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
+	    if loc == 0: raise NullPointerException(str(self))
+	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, self))
 	return memory.access(mem_type, loc)
     def value(self, loc, depth=0):
         #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
@@ -309,16 +315,23 @@ class Pointer(BaseType):
 	
         BaseType.__init__(self, info, type_list)
     def resolve(self, loc=None, depth=0):
-	if loc is not None:
-	    loc = self.get_value(loc) # unsigned long
+	_loc = loc
+	if _loc is not None:
+	    try:
+		_loc = self.get_value(loc) # unsigned long
+	    except NullPointerException, e:
+		return (self, loc)
 	
-	if self.base:
-	      return self.type_list[self.base].resolve(loc, depth+1)
+	if self.base and _loc != 0:
+	      return self.type_list[self.base].resolve(_loc, depth+1)
 	else:
-	      return self
+	      return (self, loc)
     def value(self, loc, depth=0):
-	ptr = self.get_value(loc) # unsigned long
-	if self.base:
+	try:
+	    ptr = self.get_value(loc) # unsigned long
+	except NullPointerException:
+	    return ("void *", 0)
+	if self.base and ptr != 0:
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return ("void *", ptr)

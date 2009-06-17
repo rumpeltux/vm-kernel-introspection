@@ -25,6 +25,14 @@ type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addr(name))
 
+def strings(phys_pos, filename):
+  import memory
+  f = open(filename, "w")
+  while 1:
+    s = memory.access(10, phys_pos)
+    print >>f, "%08x\t%s" % (phys_pos, repr(s))
+    phys_pos += len(s) + 1
+
 def print_symtab(filename):
   f = open(filename, "w")
   pgt = kernel_name('__ksymtab_init_task') #first element
