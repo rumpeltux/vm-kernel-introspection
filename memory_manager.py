@@ -14,7 +14,10 @@ class Memory:
     def __value(self):
         #type, loc = self.type.resolve(self.loc)
         #return type.value(loc)
-        return self.__type.value(self.__loc)
+        return self.__type.value(self.__loc)[1]
+    def resolve(self):
+	this, loc = self.__type.resolve(self.__loc)
+	return Memory(loc, this)
     #    retval = self.get_type().value(self.get_loc())
     #    return retval
 #    def __int__(self):
@@ -64,5 +67,11 @@ class Memory:
 		yield Memory(loc + idx * size_type.size, size_type)
     def __str__(self):
 	return str(self.__value())
+    def __int__(self):
+	return int(self.__value())
+    def __hex__(self):
+	return hex(self.__value())
+    def __float__(self):
+	return float(self.__value())
     def __repr__(self):
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)

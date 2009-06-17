@@ -31,6 +31,7 @@ def read_types(f):
     pat = re.compile('(<\d>)?<([0-9a-f]+)>:?\s*(.+?)\s*: (.+)')
     pat2= re.compile('DW_(AT|TAG)_(\w+)')
     pat3= re.compile('DW_OP_addr: ([a-f0-9]+)')
+    pat4= re.compile('DW_OP_plus_uconst: (\d+)')
     info = {}
     types = {}
     baseType = None
@@ -88,6 +89,9 @@ def read_types(f):
                     location = pat3.search(info['location'])
                     if location:
                         memory[int(location.group(1), 16)] = info['id']
+		
+		if 'data_member_location' in info:
+		    info['data_member_location'] = int(pat4.search(info['data_member_location']).group(1))
                 
                 stack[info['head']] = this
                 if info['head'] > 1:

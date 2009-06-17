@@ -25,6 +25,20 @@ type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addr(name))
 
+def print_symtab(filename):
+  f = open(filename, "w")
+  pgt = kernel_name('__ksymtab_init_task') #first element
+  syms = cast(pgt, Array(pgt.get_type()))
+  i = 0
+  try:
+   while 1:
+    name, value = str(cast(syms[i].name, Pointer(String(Array(type_of('unsigned char')))))), hex(syms[i].value)
+    print >>f, name, value
+    f.flush()
+    i += 1
+  except: pass
+  f.close()
+
 def dump_pagetables(pgt4, filename):
   f = open(filename, "w")
   page = lambda x: (x & ~0x8000000000000fff) + 0xffff880000000000

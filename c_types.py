@@ -202,7 +202,7 @@ class Array(Type):
 	  self.register()
 	  return
 	
-        BaseType.__init__(self, info, type_list)
+        Type.__init__(self, info, type_list)
     def append(self, type):
 	"append a Subrange-Type. copies the bound-value which is all we want to now"
         self.bound = type.bound
@@ -244,6 +244,8 @@ class BaseType(SizedType):
     6	(signed char)
     7	(unsigned)
     8	(unsigned char)
+    
+    10	(string)
     """
     encoding = 0
     def __init__(self, info, type_list):
@@ -287,6 +289,14 @@ class Member(Variable):
     def __init__(self, info, type_list=None):
         self.offset = info.get('data_member_location', 0)
         Variable.__init__(self, info, type_list)
+    def __cmp__(self, other, depth=0):
+	"Make sure, the offset is accounted for"
+        ret = cmp(self.id, other.id)
+        if ret == 0 or depth>2: return 0 #quick exit, if we know (or feel) we are the same…
+        ret = Type.__cmp__(self, other, depth)
+	if ret != 0: return ret
+	if not hasattr(other, "offset"): return -1
+	return cmp(self.offset, other.offset)
 
 class Pointer(BaseType):
     def __init__(self, info, type_list=None):
@@ -328,3 +338,24 @@ class Subrange(Type):
         if "upper_bound" in info:
             if info["upper_bound"] != "0x1ffff":
                 self.bound = int(info["upper_bound"], 10)
+		
+class String(Array):
+    "Represents a String in Memory. Should be initialised with a Char-Array"
+    def __init__(self, typ):
+	self.type_list = typ.type_list
+	self.base = typ.base
+	self.bound = typ.bound
+	self.register()
+    def value(self, loc, depth=0):
+	out = ""
+	base = self.type_list[self.base]
+	
+	return ('string', base.get_value(loc, 10))
+	i = 0
+	while 1:
+	  typ, val = base.value(loc + base.size*i, depth+1)
+	  if type(val) != int or val > 255 or val == 0 or val < -128: break
+	  out += chr((val+256)%256)
+	  i += 1
+	return ('string', out)
+	    
