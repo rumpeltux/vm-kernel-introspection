@@ -9,9 +9,9 @@ names = {}
 for k,v in types.iteritems():
   names[v.name] = k
 
-def addr(name):
-  for k,v in memory.iteritems():
-    if types[v].name == name: return (k,types[v])
+addresses = {}
+for k,v in memory.iteritems():
+  addresses[types[v].name] = (k, types[v])
 
 #some more cleanup i forgot
 pat3= re.compile('DW_OP_plus_uconst: (\d+)')
@@ -23,7 +23,7 @@ type_of_address = lambda y: types[memory[y]]
 cast = lambda memory, type: Memory(memory.get_loc(), type)
 type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
-kernel_name = lambda name: Memory(*addr(name))
+kernel_name = lambda name: Memory(*addresses[name])
 
 def strings(phys_pos, filename):
   import memory
@@ -33,19 +33,20 @@ def strings(phys_pos, filename):
     print >>f, "%08x\t%s" % (phys_pos, repr(s))
     phys_pos += len(s) + 1
 
-def print_symtab(filename):
-  f = open(filename, "w")
+def load_additional_symbols():
   pgt = kernel_name('__ksymtab_init_task') #first element
   syms = cast(pgt, Array(pgt.get_type()))
   i = 0
   try:
    while 1:
     name, value = str(cast(syms[i].name, Pointer(String(Array(type_of('unsigned char')))))), hex(syms[i].value)
-    print >>f, name, value
-    f.flush()
+    if not name in addresses and name in names: addresses[name] = (int(syms[i].value), type_of(name))
     i += 1
   except: pass
-  f.close()
+
+load_additional_symbols()
+
+open("/tmp/init_task","w").write(str(kernel_name('init_task')))
 
 def dump_pagetables(pgt4, filename):
   f = open(filename, "w")

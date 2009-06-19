@@ -4,6 +4,10 @@ from cPickle import dump, load
 from c_types import *
 
 def cleanup(types):
+    """sorts all types using their __cmp__ function which does a deep inspection.
+    
+    removes duplicates by references to the first occurence of an equivalent type"""
+    
     test = types.values()
     #for i in types:
     #    if i == types[i].id: test.append(types[i])
@@ -213,6 +217,8 @@ def playground((types, memory)):
         
 if __name__ == "__main__":
     from os import popen
+    from c_types.extensions import clean, compare, string, init
+    
     DUMP_FILENAME = "data.dump"
     
     def load_and_init():

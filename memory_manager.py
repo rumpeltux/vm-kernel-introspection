@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from c_types.extensions import string
 from c_types import *
 class Memory:
     "Memory Manager. Holds typed and addressed information, resolves structures and makes members accessible"
@@ -37,12 +38,10 @@ class Memory:
         # print key, repr(this), loc, hex(loc)
 	
         if not isinstance(this, Struct): return None
-        for i in this.members:
-            t = this.type_list[i]
-            if t.name == key:
-                retval = Memory(loc + t.offset, t)
-                return retval
-        raise KeyError("%s has no attribute %s" % (repr(this), key))
+	member, location = this.__getitem__(key, loc)
+	if member is None: raise KeyError("%s has no attribute %s" % (repr(this), key))
+        return Memory(location, member)
+        
     def __getitem__(self, idx):
 	this, loc = self.__type.resolve(self.__loc)
 	if not isinstance(this, Array): return None
@@ -55,9 +54,8 @@ class Memory:
     def __iter__(self):
 	this, loc = self.__type.resolve(self.__loc)
 	if isinstance(this, Struct):
-	    for member in this.members:
-		t = this.type_list[member]
-		yield Memory(loc + t.offset, t)
+	    for member, location in this.__iter__(loc):
+		yield Memory(location, member)
 	elif isinstance(this, Array):
 	    type = this.type_list[this.type.base]
 	    size_type = type
