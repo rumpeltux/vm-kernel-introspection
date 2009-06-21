@@ -29,35 +29,40 @@ class KernelLinkedList(Struct):
     parent = None
     offset = 0
     def __init__(self, struct, member):
+	"initialises the linked list entry"
 	self.type_list = struct.type_list
-	self.parent    = struct.id
+	self._parent   = struct.id
 	self.offset    = member.offset
-	self.register()
+	self.name      = member.name # "list_head(%s)" % struct.get_name()
+    def takeover(self, member):
+	"replaces all occurances of member in the global type list with this entry"
+	if member.offset != self.offset:
+	  raise Exception("cannot take over a foreign type!")
+	self.id = member.id
+	self.type_list[self.id] = self
     def parent(self, loc=None):
-	if loc:
-	  return self.type_list[self.parent], loc - offset
-	return self.type_list[self.parent]
+	if loc == 0: #NullPointerException
+	  return Pointer(self.type_list[self._parent]), 0
+	if not loc is None:
+	  return self.type_list[self._parent], loc - self.offset
+	return self.type_list[self._parent]
     def __getitem__(self, item, loc=None):
 	if loc is None: return self.parent()
-	
 	if item == "next": return self.parent(resolve_pointer(loc))
 	if item == "prev": return self.parent(resolve_pointer(loc+8))
 	if item == "top": return self.parent(loc)
     def __iter__(self, loc=None):
-	if loc == None:
-	  yield self.parent
-	  yield self.parent
-	yield self.parent(resolve_pointer(loc))  #next
-	yield self.parent(resolve_pointer(loc+8))#prev
-    def value(self, loc, depth=0):
-	ret = ""
-	for n, t, l in [
-	    ("next", self.parent(resolve_pointer(loc))),
-	    ("prev", self.parent(resolve_pointer(loc+8)))
-	    ]:
-	  typ, val = t.value(l)
-	  ret += "\t%s = %s\n" % (i, str(val).replace("\n", "\n\t"))
-	return ("struct", "struct list_head {\n%s}" % ret)
+	if loc is None:
+	  yield self.parent()
+	  yield self.parent()
+	else:
+	  yield self.parent(resolve_pointer(loc))  #next
+	  yield self.parent(resolve_pointer(loc+8))#prev
+    def stringy(self, depth=0):
+	return "\tnext → %s\n\tprev → %s" % (
+	    self['next'].__str__(depth+1).replace("\n", "\n\t"),
+	    self['prev'].__str__(depth+1).replace("\n", "\n\t"))
+
 
 #long_pointer_type = Pointer(BaseType({'id': 0, 'byte_size': 8, 'encoding': '07'}))
 #resolve_pointer   = lambda loc: long_pointer_type.value(loc)

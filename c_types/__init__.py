@@ -52,8 +52,11 @@ resolve() iterates until such a base-type is found."""
 	"""returns a likely name for the type by iterating through the Types base-types
 returns void if none is available"""
 	name = self.name
-	while not name and self.base:
-	  name = self.type_list[self.base]
+	base = self.base
+	while not name and base:
+	  name = self.type_list[self.base].name
+	  if base == self.type_list[self.base].base: break
+	  base = self.type_list[self.base].base
 	return name and name or "void"
 
     def __repr__(self):
@@ -70,7 +73,10 @@ class Struct(SizedType):
 	#print "struct %s" % self.name, self.id, loc
 	out = ""
         for real_member, member_loc in self.__iter__(loc):
-            member, member_loc = real_member.resolve(member_loc, depth+1)
+	    member, member_loc = real_member.resolve(member_loc, depth+1)
+	    if member_loc == 0: #prevent NullPointerExceptions
+	      out += "\tvoid * %s = 0\n" % real_member.get_name()
+	      continue
 	    type, val = member.value(member_loc, depth+1)
 	    type_str = (type != member.name) and "(%s)" % type or ""
             out += "\t%s%s %s = " % (member.name and member.name or "", type_str, real_member.name) + str(val).replace("\n","\n\t") + "\n"
@@ -84,6 +90,7 @@ class Struct(SizedType):
     def __getitem__(self, item, loc=None):
 	for i in self.members:
 	  if self.type_list[i].name == item:
+	    item = self.type_list[i]
 	    if loc is None:
 	      return item
 	    else:
@@ -238,7 +245,7 @@ class Pointer(BaseType):
 	_loc = loc
 	if _loc is not None:
 	    try:
-		_loc = self.get_value(loc) # unsigned long
+		_loc = self.get_value(loc, info=self) # unsigned long
 	    except NullPointerException, e:
 		return (self, loc)
 	

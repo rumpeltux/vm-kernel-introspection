@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from c_types import *
+from c_types.user_types import *
+
 from memory_manager import *
 import memory, type_parser
 memory.map("/dev/mem")
@@ -25,6 +27,24 @@ type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addresses[name])
 
+def prepare_list_heads():
+  """kernel lists are a special thing and need special treatment
+  this routine replaces all members of type struct list_head with
+  an appropriate replacement that takes care handling these lists"""
+  members = []
+  for k,v in types.iteritems():
+    if isinstance(v, Struct):
+      for member in v:
+	lh = member.get_base()
+	if lh and lh.name and lh.name == "list_head":
+	  members.append((KernelLinkedList(v, member), member))
+  for new_member, old_member in members:
+      new_member.takeover(old_member)
+
+
+prepare_list_heads()
+print type_of('init_task')
+
 def strings(phys_pos, filename):
   import memory
   f = open(filename, "w")
@@ -44,7 +64,8 @@ def load_additional_symbols():
     i += 1
   except: pass
 
-load_additional_symbols()
+#load_additional_symbols()
+#tracer = trace.Trace(ignoredirs=[sys.prefix, sys.exec_prefix], countfuncs=1, count=1, trace=0)
 
 open("/tmp/init_task","w").write(str(kernel_name('init_task')))
 
