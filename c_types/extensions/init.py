@@ -23,7 +23,7 @@ def Struct___init__(self, info, types=None):
     self.members = []
     SizedType.__init__(self, info, types)
 
-def Struct___append(self, type):
+def Struct_append(self, type):
     "adds a new member"
     self.members.append(type.id)
 
@@ -57,13 +57,11 @@ SizedType.__init__ = SizedType___init__
 Struct.__init__    =    Struct___init__
 Array.__init__     =     Array___init__
 
-Struct.append      =    Struct_apend
-Array.append       =     Array_apend
+Struct.append      =    Struct_append
+Array.append       =     Array_append
 
 BaseType.__init__  =  BaseType___init__
 Member.__init__    =    Member___init__
 Pointer.__init__   =   Pointer___init__
 
-Subrange.__init__  =  Subrange___init___
-
-c_types.Subrange = Subrange
+Subrange.__init__  =  Subrange___init__
