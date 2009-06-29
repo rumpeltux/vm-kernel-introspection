@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 from c_types import *
 from c_types.user_types import *
+from cPickle import load
 
 from memory_manager import *
-import memory, type_parser
+import memory, type_parser, bincmp, sys
+
 memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
-types, memory = type_parser.load(open("data.dumpc"))
+types, memoryl = type_parser.load(open("data.dumpc"))
+#forward, backward = load(open("sysmap.dump"))
 
 names = {}
 for k,v in types.iteritems():
   names[v.name] = k
 
 addresses = {}
-for k,v in memory.iteritems():
+for k,v in memoryl.iteritems():
   addresses[types[v].name] = (k, types[v])
 
 #some more cleanup i forgot
@@ -21,7 +24,7 @@ for k,v in types.iteritems():
     if hasattr(v, "offset") and type(v.offset) != int:
         v.offset = int(pat3.search(v.offset).group(1))
 
-type_of_address = lambda y: types[memory[y]]
+type_of_address = lambda y: types[memoryl[y]]
 cast = lambda memory, type: Memory(memory.get_loc(), type)
 type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
@@ -43,7 +46,6 @@ def prepare_list_heads():
 
 
 prepare_list_heads()
-#print type_of('init_task')
 
 def strings(phys_pos, filename):
   import memory
@@ -93,23 +95,28 @@ def dump_pagetables(pgt4, filename):
 
 
 if __name__=='__main__':
-  ksize = kernel_name('ksize')  
-  print ksize
-  #pgt = kernel_name('__ksymtab_init_level4_pgt')
-  #pgt_t = cast(pgt.value, Pointer(Array(type_of('long unsigned int'), bound=512))) #eine möglichkeit
-  #pgt4  = cast(pgt.value, Pointer(type_of('init_level4_pgt'))) #die andere möglichkeit
-  #print pgt_t.get_value()[1]
-  ##dump_pagetables(pgt4, "/tmp/pages")
-#
-#  init_mm = kernel_name('init_mm')
-#  init_mm.pgd.pgd
-#  print init_mm.pgd.pgd
-#
-#  init_task = kernel_name('init_task')
-#  for i in init_task:
-#    print i.type.name
-#
-#  print "out" + repr(init_task.usage)
-#  print "out" + repr(init_task.usage.counter)
-#  print init_task.usage.counter
-#  #print x(0xffffffff8091fdacL).value(0xffffffff8091fdacL)
+ # pgt = kernel_name('__ksymtab_init_level4_pgt')
+ # pgt_t = cast(pgt.value, Pointer(Array(type_of('long unsigned int'), bound=512))) #eine möglichkeit
+ # pgt4  = cast(pgt.value, Pointer(type_of('init_level4_pgt'))) #die andere möglichkeit
+ # print pgt_t.get_value()[1]
+  #dump_pagetables(pgt4, "/tmp/pages")
+  memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
+  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
+
+  nr_cpu_ids = kernel_name('mon_bin_cdev')
+  print nr_cpu_ids.memcmp()
+
+  memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
+  print nr_cpu_ids
+  memory.map("../ubuntu_memdump_after_terminal.dump", 20000)
+  print nr_cpu_ids
+  
+#  	bdump = open("beforedump.txt", "w")
+#	memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
+#	for k,v in addresses.iteritems():
+#		p = kernel_name(k)
+#		try:
+#			strrep = str(p)	
+#			bdump.write("%s\n" % strrep)
+#		except:
+#			continue

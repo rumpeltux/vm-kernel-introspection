@@ -16,6 +16,8 @@ class Memory:
         #type, loc = self.type.resolve(self.loc)
         #return type.value(loc)
         return self.__type.value(self.__loc)[1]
+    def __iseq(self, other):
+	return 
     def resolve(self):
 	this, loc = self.__type.resolve(self.__loc)
 	return Memory(loc, this)
@@ -73,3 +75,5 @@ class Memory:
 	return float(self.__value())
     def __repr__(self):
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)
+    def memcmp(self):
+        return self.__type.memcmp(self.__loc)

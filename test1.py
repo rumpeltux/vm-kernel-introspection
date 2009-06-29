@@ -40,8 +40,8 @@ def grep_System_map(symname):
 
 if __name__=='__main__':
     code_resource = kernel_name('code_resource')
-    
-    kernel_code_start = code_resource.start.get_value()[1]
+
+    kernel_code_start = code_resource.start.get_value()
     __START_KERNEL_map = 0xffffffff80000000
 
 # from System.map maybe has to be readout too ...
@@ -54,5 +54,5 @@ if __name__=='__main__':
 # maybe a simpler way to get all the kernel variables ??
     init_level4_pgt = grep_System_map('init_level4_pgt')
     pgt = kernel_name('__ksymtab_init_level4_pgt')
-    print hex(pgt.value.get_value()[1])
+    print hex(pgt.value.get_value())
     print hex(init_level4_pgt) # the same in my test environment
