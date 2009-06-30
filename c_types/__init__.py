@@ -126,7 +126,7 @@ class Union(Struct):
     def value(self, loc, depth=0):
 	return ("union", "TODO union %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
     def memcmp(self, loc, depth=0):
-	return true
+	return True
 
 class Array(Type):
     "Represents an Array. Including the upper bound"
@@ -326,7 +326,7 @@ class Pointer(BaseType):
 	if self.base and ptr != 0:
 		return self.type_list[self.base].memcmp(ptr, depth+1)
 	else:
-		return True;
+		return True
 
 class Typedef(Type):
     def resolve(self, loc, depth=0):
