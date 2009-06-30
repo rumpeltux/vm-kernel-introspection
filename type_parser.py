@@ -70,7 +70,10 @@ def read_types(f):
         if head: #subtype or alike
             tag = pat2.search(b).group(2)
             if info and not skippy: #handle collected info of last type
-            
+
+		if 'data_member_location' in info:
+		    info['data_member_location'] = int(pat4.search(info['data_member_location']).group(1))
+
                 if info['id'] in types: #if this type is already registered…
                     print "should not happen"
                     this = types[info['id']]
@@ -93,9 +96,6 @@ def read_types(f):
                     location = pat3.search(info['location'])
                     if location:
                         memory[int(location.group(1), 16)] = info['id']
-		
-		if 'data_member_location' in info:
-		    info['data_member_location'] = int(pat4.search(info['data_member_location']).group(1))
                 
                 stack[info['head']] = this
                 if info['head'] > 1:

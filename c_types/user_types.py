@@ -28,6 +28,8 @@ class KernelLinkedList(Struct):
     
     parent = None
     offset = 0
+    entries = {}
+
     def __init__(self, struct, member):
 	"initialises the linked list entry"
 	self.type_list = struct.type_list
@@ -48,22 +50,19 @@ class KernelLinkedList(Struct):
 	return self.type_list[self._parent]
     def __getitem__(self, item, loc=None):
 	if loc is None: return self.parent()
-	if item == "next": return self.parent(resolve_pointer(loc))
-	if item == "prev": return self.parent(resolve_pointer(loc+8))
-	if item == "top": return self.parent(loc)
+	return self.parent(resolve_pointer(loc + self.entries[item]))
     def __iter__(self, loc=None):
-	if loc is None:
-	  yield self.parent()
-	  yield self.parent()
-	else:
-	  yield self.parent(resolve_pointer(loc))  #next
-	  yield self.parent(resolve_pointer(loc+8))#prev
+	for name,offset in entries.iteritems():
+	  if loc is None:
+	    yield self.parent()
+	  else:
+	    yield self.parent(resolve_pointer(loc+offset))
     def stringy(self, depth=0):
-	return "\tnext → %s\n\tprev → %s" % (
-	    self['next'].__str__(depth+1).replace("\n", "\n\t"),
-	    self['prev'].__str__(depth+1).replace("\n", "\n\t"))
+	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))
+			  for name in self.entries])
 
+class KernelSingleLinkedList(KernelLinkedList):
+    entries = {'next': 0}
 
-#long_pointer_type = Pointer(BaseType({'id': 0, 'byte_size': 8, 'encoding': '07'}))
-#resolve_pointer   = lambda loc: long_pointer_type.value(loc)
-#__all__ = [Type]
+class KernelDoubleLinkedList(KernelLinkedList):
+    entries = {'next': 0, 'prev': 8}
