@@ -7,7 +7,9 @@
 
 PyDoc_STRVAR(memory__doc__,        "Arbitrary Memory Access Module");
 PyDoc_STRVAR(memory_map__doc__,    "filename -> open filename for access");
+PyDoc_STRVAR(memory_map1__doc__,    "filename -> open filename for access");
 PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
+PyDoc_STRVAR(memory_access1__doc__, "type,addr -> read the value at addr");
 PyDoc_STRVAR(memory_virt_to_phys__doc__, "virt -> maps kernel virtual address to physical address");
 
 #define MAP_SIZE ((size_t) 1 << 31)
@@ -15,9 +17,13 @@ PyDoc_STRVAR(memory_virt_to_phys__doc__, "virt -> maps kernel virtual address to
 #define PAGE_ALIGN(x) ((x) & ~0xfff)
 #define PAGE_OFFSET(x) ((x) & 0xfff)
 int map_fd = -1;
+int map_fd1 = -1;
 void * memory = NULL;
+void * memory1 = NULL;
 size_t map_size = 0;
+size_t map_size1 = 0;
 off_t map_base = 0;
+off_t map_base1 = 0;
 
 typedef unsigned long uint64;
 
@@ -155,6 +161,87 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     return Py_BuildValue(""); // None == Success
 }
 
+static PyObject * py_memory_map1(PyObject *self, PyObject *args)
+{
+    char * filename;
+
+    if (!PyArg_ParseTuple(args, "sk", &filename, &map_size1))
+        return NULL;
+    
+    if(map_fd1 != -1) { /* there is already another mapping. clear it first */
+      if(memory1) {
+	munmap(memory1, PAGE_SIZE);
+	memory1 = NULL;
+      }
+      close(map_fd1);
+    }
+    map_fd1 = open(filename, O_RDONLY, 0);
+    if(map_fd1 == -1)
+        return Py_BuildValue("s", strerror(errno));
+    
+    memory1 = mmap(NULL, map_size1, PROT_READ, MAP_SHARED, map_fd1, map_base1);
+    if(memory1 == NULL || memory1 == (void *) -1)
+      return Py_BuildValue("s", strerror(errno));
+    
+    return Py_BuildValue(""); // None == Success
+}
+
+static PyObject * py_memory_access1(PyObject *self, PyObject *args)
+{
+    char type;
+    unsigned long long address;
+    void * addr;
+    //char buf[1024];
+
+    if (!PyArg_ParseTuple(args, "bk", &type, &address))
+        return NULL;
+    
+    if(map_fd1 == -1 || memory1 == NULL || memory1 == (void *) -1)
+        return Py_BuildValue("s", "no file yet open"); // not yet mapped
+    
+    // we are above or below the mapped area
+    if(address > (map_base1 + map_size1) || address < map_base1) {
+	    // off_t oldbase = map_base;
+	    map_base1 = address - map_size1 / 2;
+	    map_base1 = map_base1 & ~(sysconf(_SC_PAGE_SIZE) - 1);
+	    // printf("remapping from base 0x%x to base 0x%x\n", (unsigned int)oldbase, (unsigned int)map_base);
+	    if(memory1) {
+		    munmap(memory1, PAGE_SIZE);
+		    memory = NULL;
+	    }
+	    memory1 = mmap(NULL, map_size1, PROT_READ, MAP_SHARED, map_fd1, map_base1);
+	    if(memory1 == NULL || memory1 == MAP_FAILED)
+		    return Py_BuildValue("s", strerror(errno));
+    }
+        // return Py_BuildValue("s", "out of area"); // out of area
+
+    addr = memory1 + address - map_base1;
+    
+    //printf("accessing %d at %p (is %p)\n", type, addr, (void *) (address));
+       
+//     {
+//         printf("new pos: %lx\n", lseek(map_fd, address, SEEK_SET));
+// 	if(read(map_fd, buf, 1024) == -1) return Py_BuildValue("s", strerror(errno));
+// 	addr = buf;
+//     }
+// 	
+    /* TODO do mapping and stuff */
+    switch(type) {
+    case 0:  return Py_BuildValue("B", *(unsigned char   *)addr);
+    case 1:  return Py_BuildValue("b", *(         char   *)addr);
+    case 2:  return Py_BuildValue("H", *(unsigned short  *)addr);
+    case 3:  return Py_BuildValue("h", *(         short  *)addr);
+    case 4:  return Py_BuildValue("I", *(unsigned int    *)addr);
+    case 5:  return Py_BuildValue("i", *(         int    *)addr);
+    case 6:  return Py_BuildValue("k", *(unsigned long   *)addr);
+    case 7:  return Py_BuildValue("l", *(         long   *)addr);
+    case 8:  return Py_BuildValue("d", *(         double *)addr);
+    case 9:  return Py_BuildValue("f", *(         float  *)addr);
+    case 10: return Py_BuildValue("s",  (         char   *)addr);
+    }
+    return Py_BuildValue(""); //None
+}
+
 static PyObject * py_memory_access(PyObject *self, PyObject *args)
 {
     char type;
@@ -214,7 +301,9 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
 
 static PyMethodDef memory_methods[] = {
 	{"map",     py_memory_map,    METH_VARARGS, memory_map__doc__},
+	{"map1",     py_memory_map1,    METH_VARARGS, memory_map1__doc__},
 	{"access",  py_memory_access, METH_VARARGS, memory_access__doc__},
+	{"access1",  py_memory_access1, METH_VARARGS, memory_access1__doc__},
 	{"virt_to_phys", py_memory_virt_to_phys, METH_VARARGS, memory_virt_to_phys__doc__},
 	{NULL, NULL}      /* sentinel */
 };

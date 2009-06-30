@@ -15,8 +15,8 @@ def cleanup(types):
     test.sort()
     dups = 0
     for i in range(1, len(test)):
-        if cmp(test[i-1], test[i]) == 0:
-            types[test[i].id] = types[test[i-1].id]
+        if cmp(test[i - 1], test[i]) == 0:
+            types[test[i].id] = types[test[i - 1].id]
             dups += 1
     del test
     print "removed:", dups
@@ -33,9 +33,9 @@ def read_types(f):
     
     #regular expression patterns
     pat = re.compile('(<\d>)?<([0-9a-f]+)>:?\s*(.+?)\s*: (.+)')
-    pat2= re.compile('DW_(AT|TAG)_(\w+)')
-    pat3= re.compile('DW_OP_addr: ([a-f0-9]+)')
-    pat4= re.compile('DW_OP_plus_uconst: (\d+)')
+    pat2 = re.compile('DW_(AT|TAG)_(\w+)')
+    pat3 = re.compile('DW_OP_addr: ([a-f0-9]+)')
+    pat4 = re.compile('DW_OP_plus_uconst: (\d+)')
     info = {}
     types = {}
     baseType = None
@@ -56,7 +56,7 @@ def read_types(f):
     for line in f:
         i += 1
         if i % 1000 == 0:
-            sys.stderr.write("%d\t%d\r" % (i,len(types)))
+            sys.stderr.write("%d\t%d\r" % (i, len(types)))
         if i % 13000000 == 0:
             cleanup(types) #takes long, but needed to reduce ram-usage
         
@@ -100,8 +100,8 @@ def read_types(f):
                 stack[info['head']] = this
                 if info['head'] > 1:
                     #print "append", this, "to", baseType
-                    if hasattr(stack[info['head']-1], "append"):
-                        stack[info['head']-1].append(this)
+                    if hasattr(stack[info['head'] - 1], "append"):
+                        stack[info['head'] - 1].append(this)
                     #else:
                         #print baseType, "wont let me append a", info['tag']
             
@@ -161,8 +161,8 @@ def clean_initial_dump(name, ret=None):
     tmp.sort()
     dups = 0
     for i in range(1, len(tmp)):
-        if cmp(tmp[i-1], tmp[i]) == 0:
-            types[tmp[i].id] = types[tmp[i-1].id]
+        if cmp(tmp[i - 1], tmp[i]) == 0:
+            types[tmp[i].id] = types[tmp[i - 1].id]
             dups += 1
     print "removed", dups, "duplicates"
     
@@ -183,7 +183,7 @@ def clean_initial_dump(name, ret=None):
     print dups, "types cleaned"
     
     print "clean memory"
-    for loc,id in memory.iteritems():
+    for loc, id in memory.iteritems():
         while types[id].id != id:
             memory[loc] = types[id].id
             id = types[id].id
@@ -198,7 +198,7 @@ def clean_initial_dump(name, ret=None):
     print dups, "obselete types removed"
 
     print "saving dump"
-    dump((types, memory), open(name+"c", "w"))
+    dump((types, memory), open(name + "c", "w"))
     return types, memory
 
 def print_symbols(types, memory):
@@ -214,20 +214,36 @@ def playground((types, memory)):
     for id, typ in types.iteritems():
         if typ.__class__ == t.__class__ and not typ.base and typ.name:
             print typ.name
-        
+
+def dump_sysmap(dumpfile, sysmap):
+    mapfile = open(sysmap, 'r')
+    sympat = re.compile('([a-f0-9]+) (.) (\w+)')
+    forward = {}
+    backward = {}
+    for line in mapfile:
+        ret = sympat.search(line.strip())
+        if not ret:
+            continue
+        addr, t, name = ret.groups()
+        intaddr = int(addr, 16)
+        forward[name] = intaddr
+        backward[intaddr] = name
+    dump((forward, backward), open(dumpfile, 'w'))
+
 if __name__ == "__main__":
     from os import popen
     from c_types.extensions import clean, compare, string, init
     
     DUMP_FILENAME = "data.dump"
+    SYSMAP_DUMP = "sysmap.dump"
     
     def load_and_init():
-        types, memory = load(open(DUMP_FILENAME+"c"))
+        types, memory = load(open(DUMP_FILENAME + "c"))
 	for i in memory:
             types[memory[i]].setDepth(0)
         return types, memory
     if len(sys.argv) < 2:
-        print "%s (init|clean|print|state|load)" % sys.argv[0]
+        print "%s (init|clean|print|state|load|readmap)" % sys.argv[0]
 	sys.exit(0)
     if sys.argv[1] == "init":
         clean_initial_dump(DUMP_FILENAME, create_initial_dump(sys.argv[2], DUMP_FILENAME))
@@ -239,5 +255,6 @@ if __name__ == "__main__":
         print_system_state(load_and_init())
     elif sys.argv[1] == "play":
         playground(load_and_init())
-    
+    elif sys.argv[1] == "readmap":
+        dump_sysmap(SYSMAP_DUMP, sys.argv[2])
 

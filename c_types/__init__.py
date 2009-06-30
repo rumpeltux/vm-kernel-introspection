@@ -43,6 +43,11 @@ resolve() iterates until such a base-type is found."""
 	    type, val = self.type_list[self.base].value(loc, depth+1)
             return (type, "%s: " % self.name + str(val))
         return self.name and (self.name, 0) or ("[unknown:%x]" % self.id, 0)
+    def memcmp(self, loc, depth=0):
+	if depth > MAX_DEPTH: return True
+	if self.base:
+		return self.type_list[self.base].memcmp(loc, depth+1)
+	return True
 
     def register(self):
 	"if this type is manually added, make it is also registered with a valid id in the global type register"
@@ -86,6 +91,18 @@ class Struct(SizedType):
 	"returns a c-like string representation of this struct including its values"
 	if depth > 2: return ("struct", "struct %s { … }" % self.get_name())
         return ("struct", "struct %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
+
+    def memcmp(self, loc, depth=0):
+	iseq = True
+	for real_member, member_loc in self.__iter__(loc):
+		member, member_loc = real_member.resolve(member_loc, depth+1)
+		if member_loc == 0:
+			continue
+		r = member.memcmp(member_loc, depth+1)
+		if not r:
+			iseq = False
+			break
+	return iseq
 	
     def __getitem__(self, item, loc=None):
 	for i in self.members:
@@ -108,6 +125,8 @@ class Union(Struct):
         return "union %s {\n%s}" % (self.get_name(), self.stringy(depth))
     def value(self, loc, depth=0):
 	return ("union", "TODO union %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
+    def memcmp(self, loc, depth=0):
+	return true
 
 class Array(Type):
     "Represents an Array. Including the upper bound"
@@ -134,6 +153,17 @@ class Array(Type):
 	  i += 1
 	if self.bound is None: ret += "\t…\n"
 	return ("array", ret + "}")
+
+    def memcmp(self, loc, depth=0):
+	    if depth > MAX_DEPTH: return True
+
+	    iseq = True
+	    for member, member_loc in self.__iter__(loc, depth):
+		    r = member.memcmp(member_loc, depth+1)
+		    if not r:
+			    iseq = False
+			    break
+	    return iseq
 
     def get_element_size(self):
 	"iterate on base-types and return the first one with size-information"
@@ -167,6 +197,8 @@ class Function(Type):
         return "%s()" % self.get_name()
     def value(self, loc, depth=0):
 	return ("function", "TODO func (%s())" % self.get_name())
+    def memcmp(self, loc, depth=0):
+	return True
 
 class MemoryAccessException(RuntimeError):
   pass
@@ -201,6 +233,17 @@ class BaseType(SizedType):
 	    if loc == 0: raise NullPointerException(str(info))
 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
 	return memory.access(mem_type, loc)
+    
+    @staticmethod
+    def get_value1(loc, mem_type=6, info=None): #unsigned long int
+        if loc >= 0xffffffff80000000: #__START_KERNEL_map
+	    loc -= 0xffffffff80000000
+	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
+	    loc -= 0xffff880000000000
+	else:
+	    if loc == 0: raise NullPointerException(str(info))
+	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
+	return memory.access1(mem_type, loc)
 
     def value(self, loc, depth=0):
         #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
@@ -208,6 +251,13 @@ class BaseType(SizedType):
 	  return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
 	except MemoryAccessException, e:
 	  return (self.name, e)
+    def memcmp(self, loc, depth=0):
+	try:
+		val1 = self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
+		val2 = self.get_value1(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
+		return val1 == val2
+	except MemoryAccessException, e:
+		return (self.name, e)
 
 class Enum(Type):
     enums = {}
@@ -226,6 +276,8 @@ class Variable(Type):
 	return self.type_list[self.base].resolve(loc, depth)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
+    def memcmp(self, loc, depth=0):
+	return self.type_list[self.base].memcmp(loc, depth)
 
 class Const(Variable):
     pass
@@ -258,7 +310,7 @@ class Pointer(BaseType):
 	  return "%s *" % self.type_list[self.base].get_name()
 	return "void *"
     def value(self, loc, depth=0):
-	if depth > 5: return (self.get_type_name(), "…")
+	if depth > MAX_DEPTH: return (self.get_type_name(), "…")
 	
 	ptr = self.get_value(loc) # unsigned long
 	
@@ -266,6 +318,15 @@ class Pointer(BaseType):
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return (self.get_type_name(), ptr)
+    def memcmp(self, loc, depth=0):
+        if depth > MAX_DEPTH: return True
+
+	ptr = self.get_value(loc)
+
+	if self.base and ptr != 0:
+		return self.type_list[self.base].memcmp(ptr, depth+1)
+	else:
+		return True;
 
 class Typedef(Type):
     def resolve(self, loc, depth=0):
@@ -273,5 +334,7 @@ class Typedef(Type):
 	return self.type_list[self.base].resolve(loc, depth+1)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth+1)
+    def memcmp(self, loc, depth=0):
+	return self.type_list[self.base].memcmp(loc, depth+1)
 
 resolve_pointer   = lambda loc: BaseType.get_value(loc)
