@@ -6,9 +6,9 @@ from cPickle import load
 from memory_manager import *
 import memory, type_parser, bincmp, sys
 
-memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
+memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
 types, memoryl = type_parser.load(open("data.dumpc"))
-#forward, backward = load(open("sysmap.dump"))
+forward, backward = load(open("sysmap.dump"))
 
 names = {}
 for k,v in types.iteritems():
@@ -17,6 +17,8 @@ for k,v in types.iteritems():
 addresses = {}
 for k,v in memoryl.iteritems():
   addresses[types[v].name] = (k, types[v])
+
+memory.set_init_level4_pgt(forward['init_level4_pgt'])
 
 #some more cleanup i forgot
 pat3= re.compile('DW_OP_plus_uconst: (\d+)')
@@ -100,16 +102,24 @@ if __name__=='__main__':
  # pgt4  = cast(pgt.value, Pointer(type_of('init_level4_pgt'))) #die andere möglichkeit
  # print pgt_t.get_value()[1]
   #dump_pagetables(pgt4, "/tmp/pages")
-  memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
-  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
+  memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
+  memory.map("../ubuntu_memdump_after_terminal.dump", 20000, 1)
 
-  nr_cpu_ids = kernel_name('mon_bin_cdev')
-  print nr_cpu_ids.memcmp()
+#  nr_cpu_ids = kernel_name('init_task')
+#  print nr_cpu_ids.active_mm.memcmp()
+  print "here"
+  for k,v in addresses.iteritems():
+	  p = kernel_name(k)
+	  if not p.memcmp():
+		  print k
 
-  memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
-  print nr_cpu_ids
-  memory.map("../ubuntu_memdump_after_terminal.dump", 20000)
-  print nr_cpu_ids
+#  print nr_cpu_ids
+#  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
+ 
+#  memory.map("../ubuntu_memdump_before_terminal.dump", 20000)
+#  print nr_cpu_ids.active_mm
+#  memory.map("../ubuntu_memdump_after_terminal.dump", 20000)
+#  print nr_cpu_ids.active_mm
   
 #  	bdump = open("beforedump.txt", "w")
 #	memory.map("../ubuntu_memdump_before_terminal.dump", 20000)

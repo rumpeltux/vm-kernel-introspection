@@ -43,10 +43,13 @@ resolve() iterates until such a base-type is found."""
 	    type, val = self.type_list[self.base].value(loc, depth+1)
             return (type, "%s: " % self.name + str(val))
         return self.name and (self.name, 0) or ("[unknown:%x]" % self.id, 0)
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
+	if self in seen:
+		return True
 	if depth > MAX_DEPTH: return True
 	if self.base:
-		return self.type_list[self.base].memcmp(loc, depth+1)
+		seen.add(self)
+		return self.type_list[self.base].memcmp(loc, depth+1, seen)
 	return True
 
     def register(self):
@@ -92,18 +95,21 @@ class Struct(SizedType):
 	if depth > 2: return ("struct", "struct %s { … }" % self.get_name())
         return ("struct", "struct %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
 
-    def memcmp(self, loc, depth=0):
-	iseq = True
-	for real_member, member_loc in self.__iter__(loc):
-		member, member_loc = real_member.resolve(member_loc, depth+1)
-		if member_loc == 0:
-			continue
-		r = member.memcmp(member_loc, depth+1)
-		if not r:
-			iseq = False
-			break
-	return iseq
-	
+    def memcmp(self, loc, depth=0, seen=set([])):
+        iseq = True
+	if self in seen:
+		return True
+        for real_member, member_loc in self.__iter__(loc):
+            member, member_loc = real_member.resolve(member_loc, depth+1)
+            if member_loc == 0:
+                continue
+	    seen.add(self)
+            r = member.memcmp(member_loc, depth+1, seen)
+            if not r:
+                iseq = False
+                break
+        return iseq
+        
     def __getitem__(self, item, loc=None):
 	for i in self.members:
 	  if self.type_list[i].name == item:
@@ -125,7 +131,7 @@ class Union(Struct):
         return "union %s {\n%s}" % (self.get_name(), self.stringy(depth))
     def value(self, loc, depth=0):
 	return ("union", "TODO union %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
 	return True
 
 class Array(Type):
@@ -154,12 +160,15 @@ class Array(Type):
 	if self.bound is None: ret += "\t…\n"
 	return ("array", ret + "}")
 
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
+	    if self in seen:
+		    return True
 	    if depth > MAX_DEPTH: return True
 
 	    iseq = True
 	    for member, member_loc in self.__iter__(loc, depth):
-		    r = member.memcmp(member_loc, depth+1)
+		    seen.add(self)
+		    r = member.memcmp(member_loc, depth+1, seen)
 		    if not r:
 			    iseq = False
 			    break
@@ -197,7 +206,7 @@ class Function(Type):
         return "%s()" % self.get_name()
     def value(self, loc, depth=0):
 	return ("function", "TODO func (%s())" % self.get_name())
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
 	return True
 
 class MemoryAccessException(RuntimeError):
@@ -232,7 +241,9 @@ class BaseType(SizedType):
 	else:
 	    if loc == 0: raise NullPointerException(str(info))
 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
-	return memory.access(mem_type, loc)
+#        if loc == 0: raise NullPointerException(str(info))
+#	physloc = memory.virt_to_phys(loc, 0)
+	return memory.access(mem_type, loc, 0)
     
     @staticmethod
     def get_value1(loc, mem_type=6, info=None): #unsigned long int
@@ -243,7 +254,9 @@ class BaseType(SizedType):
 	else:
 	    if loc == 0: raise NullPointerException(str(info))
 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
-	return memory.access1(mem_type, loc)
+#        if loc == 0: raise NullPointerException(str(info))
+#	physloc = memory.virt_to_phys(loc, 1)
+	return memory.access(mem_type, loc, 1)
 
     def value(self, loc, depth=0):
         #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
@@ -251,7 +264,9 @@ class BaseType(SizedType):
 	  return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
 	except MemoryAccessException, e:
 	  return (self.name, e)
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
+	if self in seen:
+		return True
 	try:
 		val1 = self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
 		val2 = self.get_value1(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
@@ -276,8 +291,11 @@ class Variable(Type):
 	return self.type_list[self.base].resolve(loc, depth)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
-    def memcmp(self, loc, depth=0):
-	return self.type_list[self.base].memcmp(loc, depth)
+    def memcmp(self, loc, depth=0, seen=set([])):
+	if self in seen:
+		return True
+	seen.add(self)
+	return self.type_list[self.base].memcmp(loc, depth, seen)
 
 class Const(Variable):
     pass
@@ -318,13 +336,16 @@ class Pointer(BaseType):
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return (self.get_type_name(), ptr)
-    def memcmp(self, loc, depth=0):
+    def memcmp(self, loc, depth=0, seen=set([])):
+	if self in seen:
+		return True
         if depth > MAX_DEPTH: return True
 
 	ptr = self.get_value(loc)
 
 	if self.base and ptr != 0:
-		return self.type_list[self.base].memcmp(ptr, depth+1)
+		seen.add(self)
+		return self.type_list[self.base].memcmp(ptr, depth+1, seen)
 	else:
 		return True
 
@@ -334,7 +355,10 @@ class Typedef(Type):
 	return self.type_list[self.base].resolve(loc, depth+1)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth+1)
-    def memcmp(self, loc, depth=0):
-	return self.type_list[self.base].memcmp(loc, depth+1)
+    def memcmp(self, loc, depth=0, seen=set([])):
+	if self in seen:
+		return True
+	seen.add(self)
+	return self.type_list[self.base].memcmp(loc, depth+1, seen)
 
 resolve_pointer   = lambda loc: BaseType.get_value(loc)

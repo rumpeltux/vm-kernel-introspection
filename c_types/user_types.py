@@ -52,7 +52,7 @@ class KernelLinkedList(Struct):
 	if loc is None: return self.parent()
 	return self.parent(resolve_pointer(loc + self.entries[item]))
     def __iter__(self, loc=None):
-	for name,offset in entries.iteritems():
+	for name,offset in self.entries.iteritems():
 	  if loc is None:
 	    yield self.parent()
 	  else:
