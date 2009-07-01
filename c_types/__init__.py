@@ -46,7 +46,7 @@ resolve() iterates until such a base-type is found."""
     def memcmp(self, loc, depth=0, seen=set([])):
 	if self in seen:
 		return True
-	if depth > MAX_DEPTH: return True
+#	if depth > MAX_DEPTH: return True
 	if self.base:
 		seen.add(self)
 		return self.type_list[self.base].memcmp(loc, depth+1, seen)
@@ -163,7 +163,7 @@ class Array(Type):
     def memcmp(self, loc, depth=0, seen=set([])):
 	    if self in seen:
 		    return True
-	    if depth > MAX_DEPTH: return True
+#	    if depth > MAX_DEPTH: return True
 
 	    iseq = True
 	    for member, member_loc in self.__iter__(loc, depth):
@@ -179,7 +179,10 @@ class Array(Type):
 	#TODO cache this information for better performance
 	base =  self.type_list[self.base]
 	while not hasattr(base, "size"):
-	  base = self.type_list[base.base]
+#	  try:
+	  	base = self.type_list[base.base]
+#	  except KeyError:
+#		pass
 	return base.size
 	
     def __getitem__(self, idx, loc=None, depth=0):
@@ -339,7 +342,7 @@ class Pointer(BaseType):
     def memcmp(self, loc, depth=0, seen=set([])):
 	if self in seen:
 		return True
-        if depth > MAX_DEPTH: return True
+#        if depth > MAX_DEPTH: return True
 
 	ptr = self.get_value(loc)
 

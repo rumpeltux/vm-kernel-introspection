@@ -107,11 +107,13 @@ if __name__=='__main__':
 
 #  nr_cpu_ids = kernel_name('init_task')
 #  print nr_cpu_ids.active_mm.memcmp()
-  print "here"
   for k,v in addresses.iteritems():
-	  p = kernel_name(k)
-	  if not p.memcmp():
-		  print k
+	try:
+		p = kernel_name(k)
+		if not p.memcmp():
+			print k
+	except MemoryAccessException, e:
+		pass
 
 #  print nr_cpu_ids
 #  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
