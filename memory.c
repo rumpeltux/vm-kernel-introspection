@@ -21,6 +21,8 @@ void * memory = NULL;
 void * memory1 = NULL;
 size_t map_size = 0;
 size_t map_size1 = 0;
+unsigned long fsize = 0;
+unsigned long fsize1 = 0;
 off_t map_base = 0;
 off_t map_base1 = 0;
 
@@ -69,7 +71,13 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 	if(nmap == 0) {
 		if(map_fd == -1 || memory == NULL || memory == (void *) -1) {
 			*errflag = 1;
-			printf("memory_access: no file yet open (map_fd: %i, memory: %p)", map_fd, memory);
+			printf("memory_access: no file yet open (map_fd: %i, memory: %p)\n", map_fd, memory);
+			return NULL;
+		}
+
+		if(address > fsize) {
+			*errflag = 1;
+			printf("memory_access: address outside file size: fsize: %li, address: %li\n", fsize, address);
 			return NULL;
 		}
 
@@ -79,7 +87,11 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			map_base = address - map_size / 2;
 			map_base = map_base & ~(sysconf(_SC_PAGE_SIZE) - 1);
 			if(memory) {
-				munmap(memory, PAGE_SIZE);
+				if(munmap(memory, map_size) < 0) {
+					*errflag = 1;
+					printf("munmap failed\n");
+					return NULL;
+				}
 				memory = NULL;
 			}
 			memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, map_base);
@@ -91,10 +103,19 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 		}
 
 		addr = memory + address - map_base;
+		/* if(address == 537851920) {
+			printf("map_base: %i, memory: %i, map_size: %i, address: %i, addr: %i\n", map_base, memory, map_size, address, addr);
+		} */
 	} else {
 		if(map_fd1 == -1 || memory1 == NULL || memory1 == (void *) -1) {
 			*errflag = 1;
-			printf("memory_access: no file yet open (map_fd: %i, memory: %p)", map_fd, memory);
+			printf("memory_access: no file yet open (map_fd: %i, memory: %p)", map_fd1, memory1);
+			return NULL;
+		}
+		
+		if(address > fsize1) {
+			*errflag = 1;
+			printf("memory_access: address outside file size: fsize: %li, address: %li\n", fsize1, address);
 			return NULL;
 		}
 
@@ -104,7 +125,11 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			map_base1 = address - map_size1 / 2;
 			map_base1 = map_base1 & ~(sysconf(_SC_PAGE_SIZE) - 1);
 			if(memory1) {
-				munmap(memory1, PAGE_SIZE);
+				if(munmap(memory1, map_size1) < 0) {
+					*errflag = 1;
+					printf("munmap failed\n");
+					return NULL;
+				}
 				memory1 = NULL;
 			}
 			memory1 = mmap(NULL, map_size1, PROT_READ, MAP_SHARED, map_fd1, map_base1);
@@ -219,7 +244,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 
 	//pml4 = (init_level4_pgt) + pml4_index(vaddr);
 	myerrflag = 0;
-	pml4 = (unsigned long)memory_access_raw(init_level4_pgt + pml4_index(vaddr), nmap, &myerrflag);
+	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt + pml4_index(vaddr), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pml4 table address read failed");
@@ -235,9 +260,9 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 
 	pgd_paddr = (pml4) & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
-	mpgd = (unsigned long)memory_access_raw(pgd_paddr, nmap, &myerrflag);
+	mpgd = *(unsigned long*)memory_access_raw(pgd_paddr, nmap, &myerrflag);
 	// pgd = ((unsigned long*)pgd_paddr) + pgd_index(vaddr);
-	pgd = (unsigned long)memory_access_raw(pgd_paddr + pgd_index(vaddr), nmap, &myerrflag);
+	pgd = *(unsigned long*)memory_access_raw(pgd_paddr + pgd_index(vaddr), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pgd table address read failed");
@@ -252,8 +277,8 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 
 	pmd_paddr = pgd_pte & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
-	mpmd = (unsigned long)memory_access_raw(pmd_paddr, nmap, &myerrflag);
-	pmd = (unsigned long)memory_access_raw(pmd_paddr + pmd_index(vaddr), nmap, &myerrflag);
+	mpmd = *(unsigned long*)memory_access_raw(pmd_paddr, nmap, &myerrflag);
+	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + pmd_index(vaddr), nmap, &myerrflag);
 	// pmd = ((unsigned long*)pmd_paddr) + pmd_index(vaddr);
 	if(myerrflag != 0) {
 		*errflag = 1;
@@ -274,8 +299,8 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	}
 
 	pte_paddr = pmd_pte & PHYSICAL_PAGE_MASK;
-	mpte = (unsigned long)memory_access_raw(pte_paddr, nmap, &myerrflag);
-	ptep = (unsigned long)memory_access_raw(pte_paddr + pte_index(vaddr), nmap, &myerrflag);
+	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
+	ptep = *(unsigned long*)memory_access_raw(pte_paddr + pte_index(vaddr), nmap, &myerrflag);
 	//ptep = ((unsigned long*)pte_paddr) + pte_index(vaddr);
 	if(myerrflag != 0) {
 		*errflag = 1;
@@ -333,12 +358,25 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     char * filename;
     int nmap = 0;
     long mymap_size = 0;
+    unsigned long tempfsize = 0;
 
     if (!PyArg_ParseTuple(args, "ski", &filename, &mymap_size, &nmap))
         return NULL;
 
+    FILE* sfd = fopen(filename, "r");
+    if(sfd == NULL) {
+	    PyErr_SetString(PyExc_IOError, strerror(errno));
+	    return NULL;
+    }
+    fseek(sfd, 0, SEEK_END);
+    tempfsize = ftell(sfd);
+//    printf("%s: %li\n", filename, tempfsize);
+    fseek(sfd, 0, SEEK_SET);
+    fclose(sfd);
+
     if(nmap == 0) { 
 	    map_size = mymap_size;
+	    fsize = tempfsize;
 	    if(map_fd != -1) { /* there is already another mapping. clear it first */
 		    if(memory) {
 			    munmap(memory, PAGE_SIZE);
@@ -358,6 +396,7 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
 	    } 
     } else {
 	    map_size1 = mymap_size;
+	    fsize1 = tempfsize;
 	    if(map_fd1 != -1) { /* there is already another mapping. clear it first */
 		    if(memory1) {
 			    munmap(memory1, PAGE_SIZE);
@@ -398,13 +437,19 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
 
     if (!PyArg_ParseTuple(args, "bki", &type, &address, &nmap))
         return NULL;
-   
+
     int errflag = 0;
-    addr = (void*)memory_access_raw(address, nmap, &errflag);
+    addr = memory_access_raw(address, nmap, &errflag);
     if(errflag != 0) {
 	    PyErr_Format(PyExc_RuntimeError, "error accessing memory at %p", (void*)address);
 	    return NULL;
     }
+
+/*  if(address == 537851920) {
+	    printf("bla: %i, type: %i\n", addr, type);
+            unsigned long t = *(unsigned long *)addr;
+	    printf("blu: %i\n", t);
+    } */
     
     /* TODO do mapping and stuff */
     switch(type) {
