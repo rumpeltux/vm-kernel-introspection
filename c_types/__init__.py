@@ -349,7 +349,8 @@ class Variable(Type):
 		return self.type_list[self.base].resolve(loc, depth)
 	except KeyError, e:
 		print "another unhandled keyerror"
-		raise RuntimeError("another unhandled keyerror")
+		print self.type_list
+		print self.base
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, depth=0, seen={}):
@@ -372,7 +373,9 @@ class Variable(Type):
 	return self.type_list[self.base].memcmp(loc, depth, seen)
 
 class Const(Variable):
-    pass
+    def __init__(self, info):
+	self.base = info.id
+	self.type_list = info.type_list
 
 class Member(Variable):
     "This is a StructureMember"
