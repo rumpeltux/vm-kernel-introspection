@@ -75,11 +75,15 @@ resolve() iterates until such a base-type is found."""
 returns void if none is available"""
 	name = self.name
 	base = self.base
-	while not name and base:
-	  name = self.type_list[self.base].name
-	  if base == self.type_list[self.base].base: break
-	  base = self.type_list[self.base].base
-	return name and name or "void"
+# is this an error? Or should it be fixed like i suggested in the comment
+#	try:
+		while not name and base:
+		  name = self.type_list[self.base].name
+		  if base == self.type_list[self.base].base: break
+		  base = self.type_list[self.base].base
+		return name and name or "void"
+#	except KeyError, e:
+#		return "void"
 
     def __repr__(self):
 	return "<%s instance '%s'>" % (self.__class__, self.get_name())
@@ -349,8 +353,8 @@ class Variable(Type):
 		return self.type_list[self.base].resolve(loc, depth)
 	except KeyError, e:
 		print "another unhandled keyerror"
-		print self.type_list
-		print self.base
+#		print self.type_list
+#		print self.base
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, depth=0, seen={}):
@@ -373,9 +377,7 @@ class Variable(Type):
 	return self.type_list[self.base].memcmp(loc, depth, seen)
 
 class Const(Variable):
-    def __init__(self, info):
-	self.base = info.id
-	self.type_list = info.type_list
+    pass
 
 class Member(Variable):
     "This is a StructureMember"

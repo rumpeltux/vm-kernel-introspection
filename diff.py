@@ -109,6 +109,11 @@ if __name__=='__main__':
   sys.setrecursionlimit(5000)
 
   tmp = kernel_name('amd_8151_driver')
+ # adr =  addresses['amd_8151_driver']
+ # m = memoryl[adr[0]]
+ # print adr
+ # print m
+ # print types[m]
   print tmp.memcmp()
   sys.exit(0)
 #  nr_cpu_ids = kernel_name('init_task')
