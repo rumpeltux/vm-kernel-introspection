@@ -108,9 +108,14 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(5000)
 
-#  tmp = kernel_name('sil24_port_info')
-#  print tmp.memcmp()
-#  sys.exit(0)
+  tmp = kernel_name('amd_8151_driver')
+ # adr =  addresses['amd_8151_driver']
+ # m = memoryl[adr[0]]
+ # print adr
+ # print m
+ # print types[m]
+  print tmp.memcmp()
+  sys.exit(0)
 #  nr_cpu_ids = kernel_name('init_task')
 #  print nr_cpu_ids.active_mm.memcmp()
   symcounter = 0
