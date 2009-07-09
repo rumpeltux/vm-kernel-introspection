@@ -23,7 +23,6 @@ class Type:
     "BaseClass for all Types"
     name = None
     base = None
-    parents = []
 
     def get_base(self):
 	"""for convenient user access
@@ -96,12 +95,6 @@ returns "void" if none is available"""
 	while t.base and t.base in self.type_list:
 	  t = self.type_list[t.base]
 	  yield t
-	  
-    def get_references(self):
-	"returns all direct references to other types. used to initialsize the parents field"
-	if self.base:
-	    return [ self.type_list[self.base] ]
-	return []
 
 class SizedType(Type):
     "This is a Type with size-information associated"
@@ -185,13 +178,6 @@ if loc is set, returns (member_type, member_location)"""
 	    yield self.type_list[i]
 	  else:
 	    yield self.type_list[i], loc + self.type_list[i].offset
-	    
-    def get_references(self):
-	"returns all direct references to other types. used to initialsize the parents field"
-	l = Type.get_references(self)
-	for i in self:
-	  l.append(i)
-	return l
 
 class Union(Struct):
     "This type represents a C-union which is basically a Struct where all members have the offset 0."
@@ -288,13 +274,6 @@ class Array(Type):
 	  
     def __len__(self):
 	return self.bound+1 if self.bound else 1 #TODO 1 is not a good default, but __nonzero__ checks __len__ so we cannot return 0 or None
-
-    def get_references(self):
-	"returns all direct references to other types. used to initialsize the parents field"
-	l = Type.get_references(self)
-	for i in self:
-	  l.append(i)
-	return l
 
 class Subrange(Type):
     "ArraySubrange-Type for use with Array. Holds bounds information"

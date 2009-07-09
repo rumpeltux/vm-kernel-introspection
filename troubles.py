@@ -13,21 +13,11 @@ def base_check(typ, backtrace=None):
     return base_check(typ.type_list[base], backtrace)
     
 if __name__ == "__main__":
-    names, types, addresses = init()
+    names, types, addresses = init(parents=True)
 
     arrays    = filter(lambda t: isinstance(t, Array), types.values())
     errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0}
     dict_join = lambda x: "\n".join(["%15s := %d" % (k, v) for k,v in x.iteritems()])
-    
-    #make parents available
-    for t in types.values():
-      if t.base and not t.base in types: errors['base'] += 1
-      try:
-	for r in t.get_references():
-	  r.parents.append(t)
-      except KeyError:
-	pass
-
 
     for t in types.values():
 	ret = base_check(t)
@@ -36,8 +26,9 @@ if __name__ == "__main__":
 	    print "base error", ret
 
     for a in arrays:
-	if not a.bound:
+	if a.bound is None:
 	    errors['bound'] += 1
+	    print "missing bound information", a.get_name(), get_parent_names(a)
 	try:
 	    if a.get_element_size() is None:
 		print "missing size information", a, hex(a.id)
@@ -57,10 +48,11 @@ if __name__ == "__main__":
 		print " hash_node in %s\t%d" % (s.get_name(), s.size)
 		h_nodes[m.id] = 1
 		errors['hash_nodes'] += 1
+		
     for s in types.values():
 	for m in s.bases():
 	    if m.name == "hlist_head":
-		print "Hashtable in %s → %s" % (s.get_name(), m.name)
+		print "Hashtable in %s\t(%s) → %s" % (s.get_name(), get_parent_names(s), m.name)
 		errors['hashtables'] += 1
 		h_tables[s.id] = 1
     for s in types.values():
@@ -72,7 +64,7 @@ if __name__ == "__main__":
 #		  for i in s.bases():
 #		    h_nodes[i.id] = 1
 		  errors['hash_nodes'] += 1
-		  print " (x) hash_node in %s\t(%s)" % (s.get_name(), ", ".join([i.get_name() for i in s.bases()]))
+		  print " (x) hash_node in %s\t(%s)\t(%s)" % (s.get_name(), get_parent_names(s), ", ".join([i.get_name() for i in s.bases()]))
 		  break
 
     print "Zusammenfassung\n", dict_join(errors)

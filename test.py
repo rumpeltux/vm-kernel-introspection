@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from tools import *
 
-init() 
+names, types, addresses = init(parents=True)
   #"/dev/mem"
   #"../ubuntu_memdump_before_terminal.dump"
 

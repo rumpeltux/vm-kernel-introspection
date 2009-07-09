@@ -7,19 +7,33 @@ def cleanup(types):
     """sorts all types using their __cmp__ function which does a deep inspection.
     
     removes duplicates by references to the first occurence of an equivalent type"""
-    
-    test = types.values()
+    test = []
+    for id,typ in types.iteritems():
+      if id == typ.id: test.append(typ)
+    #test = types.values()
     #for i in types:
     #    if i == types[i].id: test.append(types[i])
-    print "elements:", len(test),
+    print "\nnow sorting…",
+    print "elements:", len(test)
     test.sort()
+    print "sort complete, cleaning up"
     dups = 0
+    groups = {}
+    representant = None
     for i in range(1, len(test)):
         if cmp(test[i - 1], test[i]) == 0:
-            types[test[i].id] = types[test[i - 1].id]
+	    if representant == None: representant = test[i-1].id
+	    groups[test[i].id] = representant
+	    types[test[i].id] = types[test[i - 1].id]
             dups += 1
+	else:
+	    representant = None
     del test
     print "removed:", dups
+    for id,typ in types.iteritems():
+      if typ.id in groups:
+	types[id] = types[groups[typ.id]]
+    print "index updated"
 
 def read_types(f):
     """
@@ -57,7 +71,7 @@ def read_types(f):
         i += 1
         if i % 1000 == 0:
             sys.stderr.write("%d\t%d\r" % (i, len(types)))
-        if i % 13000000 == 0:
+        if i % 5000000 == 0:
             cleanup(types) #takes long, but needed to reduce ram-usage
         
 	ret = pat.search(line.strip())
@@ -124,10 +138,10 @@ def read_types(f):
     return types, memory
 
 def create_initial_dump(in_file, out_file):
-    ret = read_types(open(in_file))
-    print "dumping"
-    dump(ret, open(out_file, "w"))
-    return ret
+    types, memory = read_types(open(in_file))
+    cleanup(types)
+    dump((types, memory), open(out_file, "w"))
+    return types, memory
 
 def clean_initial_dump(name, ret=None):
     "removes any ids, that are not needed for task-fullfillment"
@@ -139,16 +153,19 @@ def clean_initial_dump(name, ret=None):
       types, memory = load(open(name))
       #memory, types = load(open(name))
 
+    weirdos = 0
     print "validate model"
     try:
       for id, typ in types.iteritems():
 	if types[typ.id].id != typ.id:
-	    print "weirdo", typ.id, repr(types[typ.id]), types[typ.id]
+	    print "weirdo", typ.id #, repr(types[typ.id]), types[typ.id]
 	    types[typ.id] = typ
+	    weirdos += 1
     except AttributeError, e:
         print "at-error", id, repr(typ), typ
-            
-    print "removing duplicates",
+    if weirdos != 0: print "validation failed:", weirdos, "errors"
+
+    print "removing duplicates (should be 0!)"
     tmp = []
     try:
       for id, typ in types.iteritems():
@@ -171,13 +188,13 @@ def clean_initial_dump(name, ret=None):
     for id, typ in types.iteritems():
         if types[typ.id].id != typ.id:
             tmp.add(typ.id)
-    print len(tmp), "errors in model…"
+    print len(tmp), "errors in model… (MUST be 0)"
     
     print "clean types"
     #clean all known types
     dups = 0
     for id, typ in types.iteritems():
-        if typ.id == id:
+        if typ.id == id: #clean only real types. e.g. each type only once
             typ.clean()
 	    dups += 1
     print dups, "types cleaned"
@@ -230,6 +247,31 @@ def dump_sysmap(dumpfile, sysmap):
         backward[intaddr] = name
     dump((forward, backward), open(dumpfile, 'w'))
 
+def test():
+    class SimpleType:
+      def __init__(self, id, order):
+	self.id=id
+	self.order=order
+      def __cmp__(self, b):
+	return cmp(self.order, b.order)
+      def __repr__(self):
+	return "<%d : %d>" % (self.id, self.order)
+    ST = SimpleType
+    types = {}
+    
+    def init_types(data):
+      for i in data:
+	types[i.id] = i
+	
+    init_types([ST(1,1), ST(2,2), ST(3,3), ST(4,2)])
+    cleanup(types)
+    print types
+    #should be {1: <1 : 1>, 2: <2 : 2>, 3: <3 : 3>, 4: <2 : 2>}
+        
+    init_types([ST(8,2)])
+    cleanup(types)
+    print types
+    #should be {8: <8 : 2>, 1: <1 : 1>, 2: <8 : 2>, 3: <3 : 3>, 4: <8 : 2>}
 if __name__ == "__main__":
     from os import popen
     from c_types.extensions import clean, compare, string, init
@@ -257,4 +299,6 @@ if __name__ == "__main__":
         playground(load_and_init())
     elif sys.argv[1] == "readmap":
         dump_sysmap(SYSMAP_DUMP, sys.argv[2])
+    elif sys.argv[1] == "test":
+	test()
 

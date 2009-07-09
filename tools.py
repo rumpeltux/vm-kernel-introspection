@@ -12,6 +12,18 @@ type_of = lambda name: types[names[name]]
 pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addresses[name])
 
+def get_parent_names(s, v=None, d=0):
+    """returns a string representation of references to Type s
+    e.g. "{foo, bar} ← s.name" """
+    if v is None: v = set([s.id])
+    if len(s.parents) == 0 or d>1: return s.get_name()
+    l = []
+    for i in s.parents:
+      if not i.id in v:
+	v.add(i.id)
+	l.append(get_parent_names(i, v, d+1))
+    return "{%s} ← %s" % (", ".join(l), s.get_name())
+
 def handle_array(array, member, struct, cls):
   """Replacing struct list_heads is difficult for Arrays
   So here we implement the special handling for this case.
@@ -59,13 +71,17 @@ def prepare_list_heads():
   for new_member, old_member in member_list:
       new_member.takeover(old_member)
 
-def init(filename=None):
+def init(filename=None, parents=False):
     "helper function to initialise a dump-session, filename is the path to the memory dump e.g /dev/mem"
     import memory, type_parser
     global types, names, addresses
     if filename is not None:
 	memory.map(filename, 20000)
     types, memory = type_parser.load(open("data.dumpc"))
+
+    if parents:
+	from c_types.extensions import parents
+	parents.enumerate_parents(types)
 
     names = {}
     for k,v in types.iteritems():
