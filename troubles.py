@@ -15,22 +15,24 @@ def base_check(typ, backtrace=None):
 if __name__ == "__main__":
     names, types, addresses = init()
 
+    arrays    = filter(lambda t: isinstance(t, Array), types.values())
+    errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0}
+    dict_join = lambda x: "\n".join(["%15s := %d" % (k, v) for k,v in x.iteritems()])
+    
     #make parents available
     for t in types.values():
+      if t.base and not t.base in types: errors['base'] += 1
       try:
 	for r in t.get_references():
 	  r.parents.append(t)
       except KeyError:
 	pass
 
-    arrays    = filter(lambda t: isinstance(t, Array), types.values())
-    errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0}
-    dict_join = lambda x: "\n".join(["%15s := %d" % (k, v) for k,v in x.iteritems()])
 
     for t in types.values():
 	ret = base_check(t)
 	if ret is not None:
-	    errors['base'] += 1
+	    #errors['base'] += 1
 	    print "base error", ret
 
     for a in arrays:
@@ -38,6 +40,7 @@ if __name__ == "__main__":
 	    errors['bound'] += 1
 	try:
 	    if a.get_element_size() is None:
+		print "missing size information", a, hex(a.id)
 		errors['size'] += 1
 	except KeyError:
 	    print "KeyError for %x" % (a.id)

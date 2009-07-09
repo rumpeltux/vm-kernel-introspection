@@ -385,7 +385,7 @@ may raise a MemoryAccessException"""
 	except MemoryAccessException, e:
 		return (self.name, e)
 
-class Enum(Type):
+class Enum(SizedType):
     enums = {}
     def append(self, enum):
         self.enums[enum.name] = enum.const
