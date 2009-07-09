@@ -66,7 +66,10 @@ def Struct___cmp__(self, other, depth=0):
       ret = cmp(len(self.members), len(other.members))
       if ret == 0:
 	  for i in range(0, len(self.members)):
-	      ret = self.type_list[self.members[i]].__cmp__(self.type_list[other.members[i]], depth+1)
+	      if not self.members[i] in self.type_list or not other.members[i] in self.type_list:
+		  ret = cmp(self.members[i], other.members[i])
+	      else:
+		  ret = self.type_list[self.members[i]].__cmp__(self.type_list[other.members[i]], depth+1)
 	      if ret != 0: break
       self.lock = False
       return ret

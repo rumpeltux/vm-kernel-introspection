@@ -82,11 +82,11 @@ returns "void" if none is available"""
 	base = self.base
 # is this an error? Or should it be fixed like i suggested in the comment
 #	try:
-		while not name and base:
-		  name = self.type_list[self.base].name
-		  if base == self.type_list[self.base].base: break
-		  base = self.type_list[self.base].base
-		return name and name or "void"
+	while not name and base:
+	    name = self.type_list[self.base].name
+	    if base == self.type_list[self.base].base: break
+	    base = self.type_list[self.base].base
+	return name if name else "void"
 #	except KeyError, e:
 #		return "void"
 
@@ -506,3 +506,6 @@ class Typedef(Type):
 	return self.type_list[self.base].memcmp(loc, depth+1, seen)
 
 resolve_pointer   = lambda loc: BaseType.get_value(loc)
+
+class UnwantedType(Type):
+    pass
