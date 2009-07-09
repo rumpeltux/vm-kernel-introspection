@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+# extension to compare instances of types on a
+# debug-symbol level (not for memory), because
+# the kernel object dump will contain many duplicates
+#
+# comparism is recursive because name and other attributes
+# may not be sufficient to be sure the type is equal or not
+
 from c_types import *
 
 def Type___cmp__(self, other, depth=0):

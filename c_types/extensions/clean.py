@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# extensions to replace base-references of duplicate
+# types to the one representant
+
 from c_types import *
 
 def Type_clean(self):

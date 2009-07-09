@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+# initialisation functions for the type-parser
+# s.t. Types will be created based on an information
+# dictionary passed to the initialisation function
+# each type has once been created this way
+
 from c_types import *
 
 def Type___init__(self, info, type_list=None):
@@ -22,10 +27,6 @@ def SizedType___init__(self, info, types=None):
 def Struct___init__(self, info, types=None):
     self.members = []
     SizedType.__init__(self, info, types)
-
-def Struct_append(self, type):
-    "adds a new member"
-    self.members.append(type.id)
 
 def Array___init__(self, info, type_list):
     Type.__init__(self, info, type_list)
@@ -57,7 +58,6 @@ SizedType.__init__ = SizedType___init__
 Struct.__init__    =    Struct___init__
 Array.__init__     =     Array___init__
 
-Struct.append      =    Struct_append
 Array.append       =     Array_append
 
 BaseType.__init__  =  BaseType___init__

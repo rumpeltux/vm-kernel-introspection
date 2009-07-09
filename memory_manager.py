@@ -2,15 +2,30 @@
 from c_types.extensions import string
 from c_types import *
 class Memory:
-    "Memory Manager. Holds typed and addressed information, resolves structures and makes members accessible"
+    """Memory Manager
+
+Holds typed and addressed information, resolves structures and makes members accessible
+
+Members are conveniently accessable:
+  sample = Memory(location, type)
+  print sample.member1
+  print sample.array_member[1]
+  print len(sample.array_member)
+  [i**2 for i in sample.array_member]
+  [member.get_type().get_name() for member in sample]
+"""
     def __init__(self, loc, type):
+	"initialise this MemoryManager. Its of type type at location loc"
 	self.__loc = loc
 	self.__type = type
     def get_type(self):
+	"returns a c_types-instance associated with this Memory-object"
 	return self.__type
     def get_loc(self):
+	"returns the location associated with this Memory-object"
         return self.__loc
     def get_value(self):
+	"returns the representation presented by this Memory’s type and location"
         return self.__value()
     def __value(self):
         #type, loc = self.type.resolve(self.loc)
@@ -19,6 +34,7 @@ class Memory:
     def __iseq(self, other):
 	return 
     def resolve(self):
+	"resolves this Type (see c_types.Type.resolve) and returns a new Memory-object"
 	this, loc = self.__type.resolve(self.__loc)
 	return Memory(loc, this)
     #    retval = self.get_type().value(self.get_loc())
@@ -65,6 +81,10 @@ class Memory:
 		size_type = this.type_list[size_type.base]
 	    for idx in range(this.bound):
 		yield Memory(loc + idx * size_type.size, size_type)
+    def __len__(self):
+	this, loc = self.__type.resolve(self.__loc)
+	if not isinstance(this, Array): return None
+	return len(this)
     def __str__(self):
 	return str(self.__value())
     def __int__(self):
