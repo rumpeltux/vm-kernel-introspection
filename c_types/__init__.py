@@ -23,15 +23,18 @@ class Type:
     "BaseClass for all Types"
     name = None
     base = None
+    parents = []
 
     def get_base(self):
-	"for convenient user access ;)"
+	"""for convenient user access
+returns a Type instance of this type’s base-type.
+e.g. a Pointer to a Struct would have a base-type of Struct"""
 	if self.base in self.type_list:
 	      return self.type_list[self.base]
     def resolve(self, loc=None, depth=0):
 	"""resolve the type
 
-Some times are just intermediate Types that reference another Type
+Some types are just intermediate Types that reference another Type
 through the base property. E.g a Variable is a type on its own but
 has a base-Type which is the Type of the Variable.
 
@@ -39,7 +42,10 @@ resolve() iterates until such a base-type is found."""
 	return (self, loc)
     
     def value(self, loc, depth=0):
-	"assume memory at location loc is of our type, return its value"
+	"""assume memory at location loc is of our type
+
+returns a tuple (type, value)
+    where value may be a String representation for all but BaseTypes"""
         if depth > MAX_DEPTH: return "<unresolved @%x>" % loc
 	if self.base:
 	    type, val = self.type_list[self.base].value(loc, depth+1)
@@ -72,7 +78,7 @@ resolve() iterates until such a base-type is found."""
 	self.type_list[self.id] = self
     def get_name(self):
 	"""returns a likely name for the type by iterating through the Types base-types
-returns void if none is available"""
+returns "void" if none is available"""
 	name = self.name
 	base = self.base
 # is this an error? Or should it be fixed like i suggested in the comment
@@ -87,6 +93,19 @@ returns void if none is available"""
 
     def __repr__(self):
 	return "<%s instance '%s'>" % (self.__class__, self.get_name())
+	
+    def bases(self):
+	"iterate over all base-types"
+	t = self
+	while t.base and t.base in self.type_list:
+	  t = self.type_list[t.base]
+	  yield t
+	  
+    def get_references(self):
+	"returns all direct references to other types. used to initialsize the parents field"
+	if self.base:
+	    return [ self.type_list[self.base] ]
+	return []
 
 class SizedType(Type):
     "This is a Type with size-information associated"
@@ -94,6 +113,10 @@ class SizedType(Type):
 
 class Struct(SizedType):
     "This type represents a C-structure. Its members usually have the type Member"
+    def append(self, type):
+	"adds a new member"
+	self.members.append(type.id)
+    
     def _value(self, loc, depth=0):
 	"returns a c-like string representation of this struct’s values"
 	#print "struct %s" % self.name, self.id, loc
@@ -110,7 +133,7 @@ class Struct(SizedType):
 
     def value(self, loc, depth=0):
 	"returns a c-like string representation of this struct including its values"
-	if depth > 2: return ("struct", "struct %s { … }" % self.get_name())
+	if depth > MAX_DEPTH: return ("struct", "struct %s { … }" % self.get_name())
         return ("struct", "struct %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
 
     def memcmp(self, loc, depth=0, seen={}):
@@ -148,6 +171,10 @@ class Struct(SizedType):
         return iseq
         
     def __getitem__(self, item, loc=None):
+        """returns the Type of this Structs member named item.
+returns None if no such member exists
+
+if loc is set, returns (member_type, member_location)"""
 	for i in self.members:
 	  if self.type_list[i].name == item:
 	    item = self.type_list[i]
@@ -156,11 +183,19 @@ class Struct(SizedType):
 	    else:
 	      return item, loc + item.offset
     def __iter__(self, loc=None):
+	"iterate over all Members, if loc is set, yields (member_type, member_location)"
 	for i in self.members:
 	  if loc is None:
 	    yield self.type_list[i]
 	  else:
 	    yield self.type_list[i], loc + self.type_list[i].offset
+	    
+    def get_references(self):
+	"returns all direct references to other types. used to initialsize the parents field"
+	l = Type.get_references(self)
+	for i in self:
+	  l.append(i)
+	return l
 
 class Union(Struct):
     "This type represents a C-union which is basically a Struct where all members have the offset 0."
@@ -175,7 +210,7 @@ class Array(Type):
     "Represents an Array. Including the upper bound"
     bound = None
     def __init__(self, info, bound=None):
-	"Creates an array with bound number of elements of type info"
+	"Creates an Array with bound number of elements of Type info"
 	self.base = info.id
 	self.type_list = info.type_list
 	self.bound = bound
@@ -185,6 +220,7 @@ class Array(Type):
         return "<Array[%s] %s>" % (self.bound, self.get_name())
 	
     def value(self, loc, depth=0):
+	"returns a c-like string-representation of an Array of this type located at location loc"
 	if depth > MAX_DEPTH: return ("array", "…")
 	
 	ret = "%s {\n" % self.get_name()
@@ -225,15 +261,18 @@ class Array(Type):
 	    return iseq
 
     def get_element_size(self):
-	"iterate on base-types and return the first one with size-information"
+	"iterate on base-types and return the first one with size-information or None if no size seems to be known"
 	#TODO cache this information for better performance
 	base =  self.type_list[self.base]
 	while not hasattr(base, "size"):
-	  try:
-	  	base = self.type_list[base.base]
-	  except KeyError:
-		print "array with no size"
-		raise RuntimeError
+	    if not base.base:
+		return None
+	    base = self.type_list[base.base]
+	  #try:
+	  	#base = self.type_list[base.base]
+	  #except KeyError:
+		#print "array with no size"
+		#raise RuntimeError
 	return base.size
 	
     def __getitem__(self, idx, loc=None, depth=0):
@@ -250,6 +289,16 @@ class Array(Type):
 	  return
 	for i in range(0, self.bound):
 	  yield self.__getitem__(i, loc, depth)
+	  
+    def __len__(self):
+	return self.bound+1 if self.bound else 1 #TODO 1 is not a good default, but __nonzero__ checks __len__ so we cannot return 0 or None
+
+    def get_references(self):
+	"returns all direct references to other types. used to initialsize the parents field"
+	l = Type.get_references(self)
+	for i in self:
+	  l.append(i)
+	return l
 
 class Subrange(Type):
     "ArraySubrange-Type for use with Array. Holds bounds information"
@@ -288,6 +337,11 @@ class BaseType(SizedType):
 
     @staticmethod
     def get_value(loc, mem_type=6, info=None): #unsigned long int
+	"""uses the memory module to access physical memory
+returns a representation based on mem_type
+loc is a virtual address
+
+may raise a MemoryAccessException"""
         if loc >= 0xffffffff80000000: #__START_KERNEL_map
 	    loc -= 0xffffffff80000000
 	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
@@ -335,7 +389,7 @@ class BaseType(SizedType):
 	except MemoryAccessException, e:
 		return (self.name, e)
 
-class Enum(Type):
+class Enum(SizedType):
     enums = {}
     def append(self, enum):
         self.enums[enum.name] = enum.const
@@ -384,6 +438,7 @@ class Member(Variable):
     offset = 0
 
 class Pointer(BaseType):
+    "Represents a Pointer to another type"
     def __init__(self, info):
 	"Creates a Pointer pointing to memory of type info"
 	self.base = info.id

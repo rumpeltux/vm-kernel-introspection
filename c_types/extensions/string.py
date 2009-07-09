@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# extensions to return string representation of types
+# mainly interesting while coding/debugging
+
 from c_types import *
 
 Type.printed = 0

@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+# depth-extensio # currently unused
+# provides functions to help enumerate a structures depth
+# e.g. how many references you have to follow from one of the
+# global symbols to reach a specific type
+
 from c_types import *
 
 Type.depth = 0
