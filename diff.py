@@ -8,7 +8,7 @@ import memory, type_parser, bincmp, sys
 
 memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
 types, memoryl = type_parser.load(open("data.dumpc"))
-forward, backward = load(open("sysmap.dump"))
+#forward, backward = load(open("sysmap.dump"))
 
 names = {}
 for k,v in types.iteritems():
@@ -18,7 +18,7 @@ addresses = {}
 for k,v in memoryl.iteritems():
   addresses[types[v].name] = (k, types[v])
 
-memory.set_init_level4_pgt(forward['init_level4_pgt'])
+#memory.set_init_level4_pgt(forward['init_level4_pgt'])
 
 #some more cleanup i forgot
 pat3= re.compile('DW_OP_plus_uconst: (\d+)')
@@ -105,15 +105,41 @@ if __name__=='__main__':
   memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
   memory.map("../ubuntu_memdump_after_terminal.dump", 20000, 1)
 
+# recursionlimit at 1000 per default, but thats not enough
+  sys.setrecursionlimit(5000)
+
+#  tmp = kernel_name('sil24_port_info')
+#  print tmp.memcmp()
+#  sys.exit(0)
 #  nr_cpu_ids = kernel_name('init_task')
 #  print nr_cpu_ids.active_mm.memcmp()
+  symcounter = 0
+  samecounter = 0
+  diffcounter = 0
+  pagedcounter = 0
+  othercounter = 0
+
   for k,v in addresses.iteritems():
-	try:
+	symcounter += 1
+  	try:
+		print k, ": ",
 		p = kernel_name(k)
 		if not p.memcmp():
-			print k
+			print "false" 
+			diffcounter += 1
+		else:
+			print "true"
+			samecounter += 1
 	except MemoryAccessException, e:
-		pass
+		print "MemoryAccessException"
+		pagedcounter += 1
+	except RuntimeError:
+		print "runtimeerror"
+		othercounter += 1
+
+  print "stats:"
+  print "symbols: %i, stayed same: %i, differring: %i, not handleable yet: %i" % (symcounter, samecounter, diffcounter, pagedcounter + othercounter)
+  print "so we got a coverage of %f %% of the symbols" % ((samecounter + diffcounter) / symcounter)
 
 #  print nr_cpu_ids
 #  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
