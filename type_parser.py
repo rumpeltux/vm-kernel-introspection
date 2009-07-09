@@ -60,7 +60,6 @@ def read_types(f):
     ignores = {'formal_parameter': 1, 'subprogram': 1, 'inlined_subroutine': 1, 'lexical_block': 1}
     i = 0
     memory = {}
-    skippy = False
     stack = [None for i in range(10)]
     this = None
     
@@ -83,7 +82,7 @@ def read_types(f):
         pos = int(pos, 16) #binary position in file used to index types
         if head: #subtype or alike
             tag = pat2.search(b).group(2)
-            if info and not skippy: #handle collected info of last type
+            if info: #handle collected info of last type
 
 		if 'data_member_location' in info:
 		    info['data_member_location'] = int(pat4.search(info['data_member_location']).group(1))
@@ -93,17 +92,11 @@ def read_types(f):
                     this = types[info['id']]
                 else:
                     #select the right class based on tag
-                    cls = classes.get(info['tag'], Type)
+		    if info['tag'] in ignores:
+		      cls = UnwantedType
+		    else:
+		      cls = classes.get(info['tag'], Type)
                     this = cls(info, types)
-                    
-                #save type for its id (id=bin_loc)
-		# speedup hack
-		#tmprepr = this.id
-		#try:
-	#		dupcheck[tmprepr]
-	#	except KeyError: 
-	#		dupcheck[tmprepr] = 1;
-               	types[info['id']] = this
                 
                 #save the location
                 if 'location' in info:
@@ -123,12 +116,12 @@ def read_types(f):
             
             #init new type
             info = {'id': pos, 'tag': tag, 'head': int(head[1:-1])}
-            if info['head'] == 1: #reset any skip commands
-                skippy = False
+            #if info['head'] == 1: #reset any skip commands
+            #    skippy = False
             #print this, info
-            if tag in ignores:  #skip the whole section
+            #if tag in ignores:  #skip the whole section
                 #print tag, info, this
-                skippy = True
+                #skippy = True
 
         #append new information to existing type
         ret = pat2.search(a)
@@ -179,9 +172,9 @@ def clean_initial_dump(name, ret=None):
     dups = 0
     for i in range(1, len(tmp)):
         if cmp(tmp[i - 1], tmp[i]) == 0:
-            types[tmp[i].id] = types[tmp[i - 1].id]
+            #types[tmp[i].id] = types[tmp[i - 1].id]
             dups += 1
-    print "removed", dups, "duplicates"
+    print "did not remove", dups, "duplicates"
     
     print "validate model"
     tmp = set()
