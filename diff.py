@@ -114,7 +114,7 @@ if __name__=='__main__':
  # print adr
  # print m
  # print types[m]
-  print tmp.memcmp()
+  print tmp
   sys.exit(0)
 #  nr_cpu_ids = kernel_name('init_task')
 #  print nr_cpu_ids.active_mm.memcmp()

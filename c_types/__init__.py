@@ -382,12 +382,7 @@ class Enumerator(Type):
             
 class Variable(Type):
     def resolve(self, loc=None, depth=0):
-	try:
-		return self.type_list[self.base].resolve(loc, depth)
-	except KeyError, e:
-		print "another unhandled keyerror"
-#		print self.type_list
-#		print self.base
+	return self.type_list[self.base].resolve(loc, depth)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, depth=0, seen={}):
@@ -471,12 +466,7 @@ class Pointer(BaseType):
 				seen[self].add(loc)
 		except KeyError, e:
 			seen[self] = set([loc])
-		try:
-			return self.type_list[self.base].memcmp(ptr, depth+1, seen)
-		except KeyError, e:
-			print "another unhandled keyerror"
-			raise RuntimeError("another unhandled keyerror")
-			return True
+		return self.type_list[self.base].memcmp(ptr, depth+1, seen)
 	else:
 		return True
 

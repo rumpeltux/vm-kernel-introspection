@@ -97,6 +97,8 @@ def read_types(f):
 		    else:
 		      cls = classes.get(info['tag'], Type)
                     this = cls(info, types)
+		
+		types[info['id']] = this
                 
                 #save the location
                 if 'location' in info:
