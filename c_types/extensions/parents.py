@@ -9,7 +9,7 @@ Type.depth = 0
 
 def Type_get_references(self):
     "returns all direct references to other types. used to initialsize the parents field"
-    if self.base:
+    if self.base is not None:
 	return [ self.type_list[self.base] ]
     return []
 

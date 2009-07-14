@@ -12,7 +12,7 @@ def Type___str__(self, depth=0):
     if self.printed or self.lock or depth > 3: return "<%s…>" % out
     self.lock = True
 
-    if self.base and self.type_list and self.base in self.type_list:
+    if self.base is not None and self.type_list and self.base in self.type_list:
 	try:
 	    out += " → " + self.type_list[self.base].__str__(depth+1)
 	except RuntimeError, r:

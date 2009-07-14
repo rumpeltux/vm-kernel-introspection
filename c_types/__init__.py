@@ -46,7 +46,7 @@ resolve() iterates until such a base-type is found."""
 returns a tuple (type, value)
     where value may be a String representation for all but BaseTypes"""
         if depth > MAX_DEPTH: return "<unresolved @%x>" % loc
-	if self.base:
+	if self.base is not None:
 	    type, val = self.type_list[self.base].value(loc, depth+1)
             return (type, "%s: " % self.name + str(val))
         return self.name and (self.name, 0) or ("[unknown:%x]" % self.id, 0)
@@ -60,7 +60,7 @@ returns a tuple (type, value)
 	except KeyError, e:
 		pass
 #	if depth > MAX_DEPTH: return True
-	if self.base:
+	if self.base is not None:
 #		seen.add((self, loc))
 #		seen.add(self)
 		try:
@@ -82,11 +82,11 @@ returns "void" if none is available"""
 	base = self.base
 # is this an error? Or should it be fixed like i suggested in the comment
 #	try:
-	while not name and base:
+	while not name and base is not None:
 	    name = self.type_list[self.base].name
 	    if base == self.type_list[self.base].base: break
 	    base = self.type_list[self.base].base
-	return name if name else "void"
+	return name if name else "undef"
 #	except KeyError, e:
 #		return "void"
 
@@ -96,10 +96,25 @@ returns "void" if none is available"""
     def bases(self):
 	"iterate over all base-types"
 	t = self
-	while t.base and t.base in self.type_list:
+	while t.base is not None and t.base in self.type_list:
 	  t = self.type_list[t.base]
 	  yield t
 
+class Void(Type):
+    "A None Type that is used for void * or other types with missing base-information"
+    def __init__(self, type_list):
+	"creates this type and adds it to the type_list"
+	self.type_list = type_list
+	self.id = 0
+	self.type_list[self.id] = self
+	self.name = "void"
+    def get_base(self):
+	return None
+    def memcmp(self, loc, depth=0, seen={}):
+	return None
+    def value(self, loc, depth=0):
+	return ("void", None)
+    
 class SizedType(Type):
     "This is a Type with size-information associated"
     size = 0
@@ -251,7 +266,7 @@ class Array(Type):
 	#TODO cache this information for better performance
 	base =  self.type_list[self.base]
 	while not hasattr(base, "size"):
-	    if not base.base:
+	    if base.base is None:
 		return None
 	    base = self.type_list[base.base]
 	  #try:
@@ -427,20 +442,20 @@ class Pointer(BaseType):
 	    except NullPointerException, e:
 		return (self, loc)
 	
-	if self.base and _loc != 0:
+	if self.base is not None and _loc != 0:
 	      return self.type_list[self.base].resolve(_loc, depth+1)
 	else:
 	      return (self, loc)
     def get_type_name(self):
-	if self.base:
+	if self.base is not None:
 	  return "%s *" % self.type_list[self.base].get_name()
-	return "void *"
+	return "undef *"
     def value(self, loc, depth=0):
 	if depth > MAX_DEPTH: return (self.get_type_name(), "…")
 	
 	ptr = self.get_value(loc) # unsigned long
 	
-	if self.base and ptr != 0:
+	if self.base is not None and ptr != 0:
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return (self.get_type_name(), ptr)
@@ -458,7 +473,7 @@ class Pointer(BaseType):
 
 	ptr = self.get_value(loc)
 
-	if self.base and ptr != 0:
+	if self.base is not None and ptr != 0:
 #		seen.add((self, loc))
 #		seen.add(self)
 		try: 

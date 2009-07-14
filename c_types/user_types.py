@@ -13,7 +13,7 @@ e.g.: String(Array(type_of('unsigned char')))"""
 	out = ""
 	base = self.type_list[self.base]
 	
-	return ('string', base.get_value(loc, 10))
+	return ('string', base.get_value(loc, 10)) # 10 == MEMORY_TYPE_NULLTERMINATED_STRING
 	i = 0
 	while 1:
 	  typ, val = base.value(loc + base.size*i, depth+1)
