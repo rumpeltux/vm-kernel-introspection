@@ -28,46 +28,9 @@ off_t map_base1 = 0;
 
 typedef unsigned long uint64;
 
-// #define PAGE_SHIFT 12
-// #define PTE_BITS 9
-// #define PTE_SHIFT (PAGE_SHIFT+PTE_BITS)
-// #define PMD_BITS 9
-// #define PMD_SHIFT (PTE_SHIFT+PMD_BITS)
-// #ifndef PAE
-//   #define PUD_BITS 9
-//   #define PUD_SHIFT (PMD_SHIFT+PUD_BITS)
-//   #define PGDIR_BITS 7
-//   #define PGDIR_SHIFT (PUD_SHIFT+PGDIR_BITS)
-// #else
-//   #define PGDIR_BITS 2
-//   #define PGDIR_SHIFT (PMD_SHIFT+PGDIR_BITS)
-// #endif
-// 
-// void * address_lookup(void * p, uint64 * pgd) {
-//     /* TODO: Fehlerbehandlung, Flags prüfen (present etc) */
-//     uint64 pgd_offset = (((uint64) p) >> (PGDIR_SHIFT-PAGE_SHIFT)) & ((1 << PGDIR_BITS)-1);
-//     #ifndef PAE
-//       uint64 pud_offset = (((uint64) p) >> (PUD_SHIFT  -PAGE_SHIFT)) & ((1 << PUD_BITS)-1);
-//     #endif
-//     uint64 pmd_offset = (((uint64) p) >> (PMD_SHIFT  -PAGE_SHIFT)) & ((1 << PMD_BITS)-1);
-//     uint64 pte_offset = (((uint64) p) >> (PTE_SHIFT  -PAGE_SHIFT)) & ((1 << PTE_BITS)-1);
-//     #ifndef PAE
-//       uint64 * pud = pgd[pgd_offset] & ~(PAGE_SIZE-1);
-//       printf("  pgt[%ld]: %p\n", pgd_offset, pud);
-//       uint64 * pmd = pud[pud_offset] & ~(PAGE_SIZE-1);
-//       printf("   pud[%ld]: %p\n", pud_offset, pmd);
-//     #else
-//       uint64 * pmd = pgd[pgd_offset] & ~(PAGE_SIZE-1);
-//     #endif
-//     uint64 * pte = pmd[pmd_offset] & ~(PAGE_SIZE-1);
-//     printf("    pmd[%ld]: %p\n", pmd_offset, pte);
-//     void * page  = pte[pte_offset] & ~(PAGE_SIZE-1);
-//     printf("     pte[%ld]: %p\n", pte_offset, page);
-//     return page;
-// }
-
 void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 	void* addr;
+	printf("access: %p\n", (void*)address);
 	if(nmap == 0) {
 		if(map_fd == -1 || memory == NULL || memory == (void *) -1) {
 			*errflag = 1;
@@ -77,7 +40,8 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 
 		if(address > fsize) {
 			*errflag = 1;
-			printf("memory_access: address outside file size: fsize: %li, address: %li\n", fsize, address);
+			printf("memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize, address);
+			printf("memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize, (void*)address);
 			return NULL;
 		}
 
@@ -115,7 +79,8 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 		
 		if(address > fsize1) {
 			*errflag = 1;
-			printf("memory_access: address outside file size: fsize: %li, address: %li\n", fsize1, address);
+			printf("memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize1, address);
+			printf("memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize1, (void*)address);
 			return NULL;
 		}
 
@@ -148,21 +113,19 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 // from crashtool x86_64
 #define MEGABYTES(x)  ((x) * (1048576))
 #define ULONG(ADDR)     *((ulong *)((char *)(ADDR)))
-#define ULONGLONG(ADDR) *((ulonglong *)((char *)(ADDR)))
-#define ULONG_PTR(ADDR) *((ulong **)((char *)(ADDR)))
 
 #define __START_KERNEL_map  0xffffffff80000000UL
 #define MODULES_LEN     (MODULES_END - MODULES_VADDR)
 
-#define VMALLOC_START       0xffffc20000000000
-#define VMALLOC_END         0xffffe1ffffffffff
-#define USERSPACE_TOP       0x0000800000000000
-#define KERNEL_PAGE_OFFSET  0xffff880000000000
-#define MODULES_VADDR       0xffffffff88000000
-#define MODULES_END         0xfffffffffff00000
+#define VMALLOC_START       0xffffc20000000000UL
+#define VMALLOC_END         0xffffe1ffffffffffUL
+#define USERSPACE_TOP       0x0000800000000000UL
+#define KERNEL_PAGE_OFFSET  0xffff880000000000UL
+#define MODULES_VADDR       0xffffffff88000000UL
+#define MODULES_END         0xfffffffffff00000UL
 
-#define VMEMMAP_VADDR       0xffffe20000000000
-#define VMEMMAP_END         0xffffe2ffffffffff
+#define VMEMMAP_VADDR       0xffffe20000000000UL
+#define VMEMMAP_END         0xffffe2ffffffffffUL
 
 #define IS_KVADDR(addr)	    ((addr) >= KERNEL_PAGE_OFFSET)
 
@@ -198,27 +161,10 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 unsigned long phys_base = 0;
 unsigned long init_level4_pgt = 0xffffffff80201000;
 
-/*
- *  x86_64 __pa() clone.
+
+/* errflag will be set to 1 on error will be set to 2 if page is not 
+ * present
  */
-unsigned long x86_64_VTOP(unsigned long vaddr)
-{
-        if (vaddr >= __START_KERNEL_map)
-                return ((vaddr) - (unsigned long)__START_KERNEL_map + phys_base);
-        else
-                return ((vaddr) - KERNEL_PAGE_OFFSET);
-}
-
-int
-IS_VMALLOC_ADDR(unsigned long vaddr)
-{
-        return ((vaddr >= VMALLOC_START && vaddr <= VMALLOC_END) ||
-                 (vaddr >= VMEMMAP_VADDR && vaddr <= VMEMMAP_END) ||
-                (vaddr >= MODULES_VADDR && vaddr <= MODULES_END) ||
-		(vaddr >= __START_KERNEL_map) || 
-		(vaddr >= KERNEL_PAGE_OFFSET));
-}
-
 unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	int myerrflag = 0;
 	unsigned long pml4;
@@ -236,6 +182,8 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	unsigned long mpte;
 	unsigned long pte;
 
+	printf("page lookup for: %p -> ", (void*)vaddr);
+
 	if(init_level4_pgt == 0) {
 		printf("init_level4_pgt not set\n");
 		*errflag = 1;
@@ -244,93 +192,169 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 
 	//pml4 = (init_level4_pgt) + pml4_index(vaddr);
 	myerrflag = 0;
-	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt + pml4_index(vaddr), nmap, &myerrflag);
+
+
+	unsigned long init_level4_pgt_tr = 0;
+	if (init_level4_pgt >= __START_KERNEL_map) {
+		init_level4_pgt_tr = ((init_level4_pgt) - (unsigned long)__START_KERNEL_map + phys_base);
+	} else if (vaddr >= KERNEL_PAGE_OFFSET) {
+		init_level4_pgt_tr = ((init_level4_pgt) - KERNEL_PAGE_OFFSET);
+	} else {
+		init_level4_pgt_tr = init_level4_pgt;
+	} 
+	// init_level4_pgt_tr = (init_level4_pgt & ~0x8000000000000fff) + 0xffff880000000000;
+	// init_level4_pgt_tr = (init_level4_pgt) & PHYSICAL_PAGE_MASK;
+	
+
+	printf("init_level4_pgt_tr: %p\n", (void*)init_level4_pgt_tr);
+
+	printf("pml4_index: %lu, pml4_addr_ind: %p\n", pml4_index(vaddr), (void*)init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr));
+
+	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pml4 table address read failed");
 		return 0;
 	}
 
-	if(!(pml4) & _PAGE_PRESENT) {
+	if(!pml4 & _PAGE_PRESENT) {
 		// nopage 
-		printf("page not present\n");
-		*errflag = 1;
+		printf("page not present in pml4\n");
+		printf("pml4: %lu\n", pml4);
+		*errflag = 2;
 		return 0;
 	}
 
 	pgd_paddr = (pml4) & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
-	mpgd = *(unsigned long*)memory_access_raw(pgd_paddr, nmap, &myerrflag);
+	printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
+	printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
+//	mpgd = *(unsigned long*)memory_access_raw(pgd_paddr, nmap, &myerrflag);
+	// mpgd = pgd_paddr;
 	// pgd = ((unsigned long*)pgd_paddr) + pgd_index(vaddr);
-	pgd = *(unsigned long*)memory_access_raw(pgd_paddr + pgd_index(vaddr), nmap, &myerrflag);
+	pgd = *(unsigned long*)memory_access_raw(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pgd table address read failed");
 		return 0;
 	}
-	pgd_pte = ULONG(mpgd + (((unsigned long)(pgd)) & KERNEL_PAGE_OFFSET));
+
+/*	printf("mpgd: %p, pgd: %p, acc: %p\n", (void*)mpgd, (void*)pgd, (void*)((mpgd + (((unsigned long)(pgd)) & (PAGE_SIZE - 1)))));
+	pgd_pte = *(unsigned long*)memory_access_raw((mpgd + (pgd & (PAGE_SIZE - 1))), nmap, &myerrflag);
 	if(!(pgd_pte & _PAGE_PRESENT)) {
-		*errflag = 1;
+		*errflag = 2;
+		printf("page not present in pgd\n");
+		return 0;
+	} */
+
+
+	if(!(pgd & _PAGE_PRESENT)) {
+		*errflag = 2;
 		printf("page not present in pgd\n");
 		return 0;
 	}
 
-	pmd_paddr = pgd_pte & PHYSICAL_PAGE_MASK;
+	pmd_paddr = pgd & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
-	mpmd = *(unsigned long*)memory_access_raw(pmd_paddr, nmap, &myerrflag);
-	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + pmd_index(vaddr), nmap, &myerrflag);
+
+	printf("fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
+
+	// mpmd = *(unsigned long*)memory_access_raw(pmd_paddr, nmap, &myerrflag);
+	
+	// printf("mpmd: %p\n", (void*)mpmd);
+	printf("pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
+	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr), nmap, &myerrflag);
 	// pmd = ((unsigned long*)pmd_paddr) + pmd_index(vaddr);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pmd table address read failed");
 		return 0;
 	}
-	pmd_pte = ULONG(mpmd + (((unsigned long)(pmd)) & KERNEL_PAGE_OFFSET));
+	/* pmd_pte = *(unsigned long*)memory_access_raw(mpmd + (((unsigned long)(pmd)) & KERNEL_PAGE_OFFSET), nmap, &myerrflag);
+//	pmd_pte = ULONG(mpmd + (((unsigned long)(pmd)) & KERNEL_PAGE_OFFSET));
 	if(!(pmd_pte & _PAGE_PRESENT)) {
-		*errflag = 1;
+		*errflag = 2;
 		printf("page not present in pgd\n");
 		return 0;
 	}
-	if(pmd_pte & _PAGE_PSE) {
+	*/
+	if(!(pmd & _PAGE_PRESENT)) {
+		*errflag = 2;
+		printf("page not present in pgd\n");
+		return 0;
+	}
+
+	printf("pmd: %p\n", (void*)pmd);
+	if(pmd & _PAGE_PSE) {
 		/* 2MB Page */
-		unsigned long physpage = (PAGEBASE(pmd_pte) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
+		unsigned long physpage = (PAGEBASE(pmd) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
 		unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
 		return physaddr;
 	}
 
-	pte_paddr = pmd_pte & PHYSICAL_PAGE_MASK;
-	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
-	ptep = *(unsigned long*)memory_access_raw(pte_paddr + pte_index(vaddr), nmap, &myerrflag);
+	pte_paddr = pmd & PHYSICAL_PAGE_MASK;
+
+	printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
+	printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
+//	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
+	ptep = *(unsigned long*)memory_access_raw(pte_paddr + sizeof(unsigned long) * pte_index(vaddr), nmap, &myerrflag);
 	//ptep = ((unsigned long*)pte_paddr) + pte_index(vaddr);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pmd table address read failed");
 		return 0;
 	}
-	pte = ULONG(mpte + (((unsigned long)(ptep)) & KERNEL_PAGE_OFFSET));
+/*	pte = ULONG(mpte + (((unsigned long)(ptep)) & KERNEL_PAGE_OFFSET));
 	if(!(pte & (_PAGE_PRESENT))) {
-		*errflag = 1;
+		*errflag = 2;
+		printf("page not present in pte\n");
+		return 0;
+	} */
+	if(!(ptep & (_PAGE_PRESENT))) {
+		*errflag = 2;
 		printf("page not present in pte\n");
 		return 0;
 	}
 
-	unsigned long physpage = (PAGEBASE(pte) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
+	printf("value there: %p\n", (void*)ptep);
 
-	unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
+	// unsigned long physpage = (PAGEBASE(ptep) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
+
+	// unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
+//	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
+	unsigned long physaddr = ptep;
+
 	return physaddr;
 }
 
 unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, int* errflag) {
         if(IS_KVADDR(virtual)) {
-                if(!IS_VMALLOC_ADDR(virtual)) {
-			*errflag = 0;
-                        return x86_64_VTOP(virtual);
-                } else {
+		unsigned long physaddr = 0;
+		if(!((virtual >= VMALLOC_START && virtual <= VMALLOC_END) ||
+	   	     (virtual >= VMEMMAP_VADDR && virtual <= VMEMMAP_END) ||
+	             (virtual >= MODULES_VADDR && virtual <= MODULES_END))) {
+			if (virtual >= (unsigned long)__START_KERNEL_map) {
+				*errflag = 0;
+				physaddr = ((virtual) - (unsigned long)__START_KERNEL_map + phys_base);
+				// printf("start_kern_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
+			} else /* (virtual >= (unsigned long)KERNEL_PAGE_OFFSET) */ {
+				*errflag = 0;
+				physaddr = ((virtual) - KERNEL_PAGE_OFFSET);
+				// printf("pg_offs_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
+			}
+		} else {
 			// use the address_lookup function
-			return page_lookup(virtual, nmap, errflag);
+//			unsigned long kvaddr = page_lookup(virtual, nmap, errflag);
+			physaddr = page_lookup(virtual, nmap, errflag);
+			printf("kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
+//			physaddr = map_kernel_virtual_to_physical(kvaddr, nmap, errflag);
+//			printf("pagain: %p -> %p\n", (void*)kvaddr, (void*)physaddr);
+
 		}
-        }
-	printf("not a virtual address\n");
+		return physaddr;
+	}
+	printf("not a kernel virtual address: %p\n", (void*)virtual);
+//	return page_lookup(virtual, nmap, errflag);
 	*errflag = 1;
 	return 0;
 }
@@ -346,7 +370,11 @@ static PyObject * py_memory_virt_to_phys(PyObject *self, PyObject *args)
 		return NULL;
 	
 	phys = map_kernel_virtual_to_physical(virt, nmap, &errflag);
-	if(errflag != 0) {
+	if(errflag == 2) {
+		// PyObject * exp = PyErr_NewException("cexcp.PageNotPresent", NULL, NULL);
+		PyErr_Format(PyExc_ValueError, "page for address %p not present", (void*)virt);
+		return NULL;
+	} else if(errflag != 0) {
 		PyErr_SetString(PyExc_RuntimeError, "error mapping virtual address");
 		return NULL;
 	}
@@ -430,7 +458,7 @@ static PyObject *py_memory_set_init_level4_pgt(PyObject *self, PyObject *args) {
 static PyObject * py_memory_access(PyObject *self, PyObject *args)
 {
     char type;
-    unsigned long long address;
+    unsigned long address;
     void * addr;
     int nmap = 0;
     //char buf[1024];
@@ -480,5 +508,7 @@ static PyMethodDef memory_methods[] = {
 PyMODINIT_FUNC
 initmemory(void)
 {
+	//PyObject* mod = Py_InitModule3("memory", memory_methods, memory__doc__);
 	Py_InitModule3("memory", memory_methods, memory__doc__);
+//	PyModule_AddObject(mod, "PageNotPresent", PyErr_NewException("memory.PageNotPresent", NULL, NULL));
 }

@@ -291,9 +291,15 @@ class Function(Type):
     def memcmp(self, loc, depth=0, seen={}):
 	return True
 
+class RecursingTypeException(RuntimeError):
+  pass
 class MemoryAccessException(RuntimeError):
   pass
 class NullPointerException(MemoryAccessException):
+  pass
+class UserspaceVirtualAddressException(MemoryAccessException):
+  pass
+class PageNotPresent(MemoryAccessException):
   pass
 
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
@@ -321,33 +327,51 @@ returns a representation based on mem_type
 loc is a virtual address
 
 may raise a MemoryAccessException"""
-        if loc >= 0xffffffff80000000: #__START_KERNEL_map
-	    loc -= 0xffffffff80000000
-	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
-	    loc -= 0xffff880000000000
-	else:
-	    if loc == 0: raise NullPointerException(str(info))
-	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
-#        if loc == 0: raise NullPointerException(str(info))
-#	physloc = memory.virt_to_phys(loc, 0)
-	return memory.access(mem_type, loc, 0)
+	if loc == 0: raise NullPointerException(str(info))
+	if loc < 0xffff880000000000:
+		# this is a userspace virtual address!
+		raise UserspaceVirtualAddressException("userspace paging not implemented!")
+	try:
+		physloc = memory.virt_to_phys(loc, 0)
+		return memory.access(mem_type, physloc, 0)
+	except ValueError, e:
+		raise PageNotPresent("page not present")
+#        if loc >= 0xffffffff80000000: #__START_KERNEL_map
+# 	    loc -= 0xffffffff80000000
+# 	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
+# 	    loc -= 0xffff880000000000
+# 	else:
+# 	    if loc == 0: raise NullPointerException(str(info))
+# 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
+# 	return memory.access(mem_type, loc, 0)
     
     @staticmethod
     def get_value1(loc, mem_type=6, info=None): #unsigned long int
-        if loc >= 0xffffffff80000000: #__START_KERNEL_map
-	    loc -= 0xffffffff80000000
-	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
-	    loc -= 0xffff880000000000
-	else:
-	    if loc == 0: raise NullPointerException(str(info))
-	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
-#        if loc == 0: raise NullPointerException(str(info))
-#	physloc = memory.virt_to_phys(loc, 1)
-	return memory.access(mem_type, loc, 1)
+	if loc == 0: raise NullPointerException(str(info))
+	if loc < 0xffff880000000000:
+		# this is a userspace virtual address!
+		raise UserspaceVirtualAddressException("userspace paging not implemented!")
+	try:
+		physloc = memory.virt_to_phys(loc, 1)
+		return memory.access(mem_type, physloc, 1)
+	except ValueError, e:
+		raise PageNotPresent("page not present")
+		#print "page not present"
+		#return 0
+#         if loc >= 0xffffffff80000000: #__START_KERNEL_map
+# 	    loc -= 0xffffffff80000000
+# 	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
+# 	    loc -= 0xffff880000000000
+# 	else:
+# 	    if loc == 0: raise NullPointerException(str(info))
+# 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
+# 	return memory.access(mem_type, loc, 1)
 
     def value(self, loc, depth=0):
         #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
 	try:
+#	  if loc == 0xffffe200006e5a78:
+#		  print "puller!", self.name
 	  return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
 	except MemoryAccessException, e:
 	  return (self.name, e)
@@ -437,7 +461,7 @@ class Pointer(BaseType):
 	return "void *"
     def value(self, loc, depth=0):
 	if depth > MAX_DEPTH: return (self.get_type_name(), "…")
-	
+
 	ptr = self.get_value(loc) # unsigned long
 	
 	if self.base and ptr != 0:
@@ -457,8 +481,14 @@ class Pointer(BaseType):
 #        if depth > MAX_DEPTH: return True
 
 	ptr = self.get_value(loc)
+	ptr1 = self.get_value(loc)
+	
+	if ptr == ptr1 == 0:
+		return True
+	if ptr == 0 or ptr1 == 0:
+		return False
 
-	if self.base and ptr != 0:
+	if self.base:
 #		seen.add((self, loc))
 #		seen.add(self)
 		try: 
@@ -472,7 +502,7 @@ class Pointer(BaseType):
 
 class Typedef(Type):
     def resolve(self, loc, depth=0):
-	if depth > 20: raise RuntimeError("recursing type...")
+	if depth > 20: raise RecursingTypeException("recursing type...")
 	return self.type_list[self.base].resolve(loc, depth+1)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth+1)

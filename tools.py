@@ -76,7 +76,7 @@ def init(filename=None, parents=False):
     import memory, type_parser
     global types, names, addresses
     if filename is not None:
-	memory.map(filename, 20000)
+	memory.map(filename, 20000, 0)
     types, memory = type_parser.load(open("data.dumpc"))
 
     if parents:
