@@ -7,7 +7,7 @@ from c_types import *
 def Type_clean(self):
   while self.base in self.type_list and self.type_list[self.base].id != self.base:
       self.base = self.type_list[self.base].id
-  if self.base and not self.base in self.type_list:
+  if self.base is not None and not self.base in self.type_list:
       print "error: base %x missing" % self.base
 
 def Struct_clean(self):

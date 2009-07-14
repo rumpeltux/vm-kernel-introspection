@@ -24,6 +24,15 @@ def get_parent_names(s, v=None, d=0):
 	l.append(get_parent_names(i, v, d+1))
     return "{%s} ← %s" % (", ".join(l), s.get_name())
 
+def prepare_void_references(types):
+    """void references (type.base is None) are not accounted for during the parsing process
+this function replaces those None references for pointers and Consts by the Void-Type which has id 0"""
+    void = Void(types)
+    for id, typ in types.iteritems():
+      if isinstance(typ, Pointer) or isinstance(typ, Const):
+	if typ.base is None:
+	  typ.base = void.id #(void.id == 0)
+
 def handle_array(array, member, struct, cls):
   """Replacing struct list_heads is difficult for Arrays
   So here we implement the special handling for this case.
@@ -99,6 +108,7 @@ def init(filename=None, parents=False):
     
     #load_additional_symbols()
     prepare_list_heads()
+    prepare_void_references(types)
 
     return names, types, addresses
 
