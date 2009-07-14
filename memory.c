@@ -30,7 +30,7 @@ typedef unsigned long uint64;
 
 void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 	void* addr;
-	printf("access: %p\n", (void*)address);
+//	printf("access: %p\n", (void*)address);
 	if(nmap == 0) {
 		if(map_fd == -1 || memory == NULL || memory == (void *) -1) {
 			*errflag = 1;

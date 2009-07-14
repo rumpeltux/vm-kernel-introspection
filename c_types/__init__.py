@@ -51,7 +51,7 @@ returns a tuple (type, value)
             return (type, "%s: " % self.name + str(val))
         return self.name and (self.name, 0) or ("[unknown:%x]" % self.id, 0)
 #    def memcmp(self, loc, depth=0, seen=set([])):
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 	try:
 		if seen[self] != None:
@@ -68,7 +68,7 @@ returns a tuple (type, value)
 				seen[self].add(loc)
 		except KeyError, e:
 			seen[self] = set([loc])
-		return self.type_list[self.base].memcmp(loc, depth+1, seen)
+		return self.type_list[self.base].memcmp(loc, loc1, depth+1, seen)
 	return True
 
     def register(self):
@@ -129,7 +129,7 @@ class Struct(SizedType):
 	if depth > MAX_DEPTH: return ("struct", "struct %s { … }" % self.get_name())
         return ("struct", "struct %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
 
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
         iseq = True
 #	if (self, loc) in seen:
 #	if self in seen:
@@ -146,7 +146,8 @@ class Struct(SizedType):
 				return True
 	except KeyError, e:
 		pass
-        for real_member, member_loc in self.__iter__(loc):
+        #for (real_member, member_loc), (real_member1, member_loc1) in (self.__iter__(loc), self.__iter__(loc1)):
+	for real_member, member_loc in self.__iter__(loc):
             member, member_loc = real_member.resolve(member_loc, depth+1)
             if member_loc == 0:
                 continue
@@ -157,7 +158,7 @@ class Struct(SizedType):
 			    seen[self].add(loc)
 	    except KeyError, e:
 		    seen[self] = set([loc])
-            r = member.memcmp(member_loc, depth+1, seen)
+            r = member.memcmp(member_loc, member_loc, depth+1, seen)
             if not r:
                 iseq = False
                 break
@@ -189,7 +190,7 @@ class Union(Struct):
         return "union %s {\n%s}" % (self.get_name(), self.stringy(depth))
     def value(self, loc, depth=0):
 	return ("union", "TODO union %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 	return True
 
 class Array(Type):
@@ -219,7 +220,7 @@ class Array(Type):
 	if self.bound is None: ret += "\t…\n"
 	return ("array", ret + "}")
 
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	    if (self, loc) in seen:
 #	    if self in seen:
 #		    return True
@@ -240,7 +241,7 @@ class Array(Type):
 				    seen[self].add(loc)
 		    except KeyError, e:
 			    seen[self] = set([loc])
-		    r = member.memcmp(member_loc, depth+1, seen)
+		    r = member.memcmp(member_loc, member_loc, depth+1, seen)
 		    if not r:
 			    iseq = False
 			    break
@@ -288,7 +289,7 @@ class Function(Type):
         return "%s()" % self.get_name()
     def value(self, loc, depth=0):
 	return ("function", "TODO func (%s())" % self.get_name())
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 	return True
 
 class RecursingTypeException(RuntimeError):
@@ -375,7 +376,7 @@ may raise a MemoryAccessException"""
 	  return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
 	except MemoryAccessException, e:
 	  return (self.name, e)
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
 #		return True
@@ -409,7 +410,7 @@ class Variable(Type):
 	return self.type_list[self.base].resolve(loc, depth)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth)
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
 #		return True
@@ -426,7 +427,7 @@ class Variable(Type):
 			seen[self].add(loc)
 	except KeyError, e:
 		seen[self] = set([loc])
-	return self.type_list[self.base].memcmp(loc, depth, seen)
+	return self.type_list[self.base].memcmp(loc, loc1, depth, seen)
 
 class Const(Variable):
     pass
@@ -468,7 +469,7 @@ class Pointer(BaseType):
 	      return self.type_list[self.base].value(ptr, depth+1)
 	else:
 	      return (self.get_type_name(), ptr)
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
 #		return True
@@ -496,7 +497,7 @@ class Pointer(BaseType):
 				seen[self].add(loc)
 		except KeyError, e:
 			seen[self] = set([loc])
-		return self.type_list[self.base].memcmp(ptr, depth+1, seen)
+		return self.type_list[self.base].memcmp(ptr, ptr1, depth+1, seen)
 	else:
 		return True
 
@@ -506,7 +507,7 @@ class Typedef(Type):
 	return self.type_list[self.base].resolve(loc, depth+1)
     def value(self, loc, depth=0):
 	return self.type_list[self.base].value(loc, depth+1)
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
 #		return True
@@ -523,7 +524,7 @@ class Typedef(Type):
 			seen[self].add(loc)
 	except:
 		seen[self] = set([loc])
-	return self.type_list[self.base].memcmp(loc, depth+1, seen)
+	return self.type_list[self.base].memcmp(loc, loc1, depth+1, seen)
 
 resolve_pointer   = lambda loc: BaseType.get_value(loc)
 

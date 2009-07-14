@@ -33,25 +33,11 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(5000)
 
-#  tmp = kernel_name('amd_8151_driver')
- # adr =  addresses['amd_8151_driver']
- # m = memoryl[adr[0]]
- # print adr
- # print m
- # print types[m]
-#  print tmp.aperture_sizes
- # sys.exit(0)
-#  nr_cpu_ids = kernel_name('init_task')
-#  print nr_cpu_ids.active_mm.memcmp()
   symcounter = 0
   samecounter = 0
   diffcounter = 0
   pagedcounter = 0
   othercounter = 0
-
-  tmp = kernel_name('arp_netdev_notifier')
-  print tmp.memcmp()
-  sys.exit(0)
 
 #  for k,v in addresses.iteritems():
 ##	  if k == "_mpio_cache":
