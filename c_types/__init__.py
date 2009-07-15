@@ -110,7 +110,7 @@ class Void(Type):
 	self.name = "void"
     def get_base(self):
 	return None
-    def memcmp(self, loc, depth=0, seen={}):
+    def memcmp(self, loc, loc1, depth=0, seen={}):
 	return None
     def value(self, loc, depth=0):
 	return ("void", None)
@@ -161,10 +161,17 @@ class Struct(SizedType):
 				return True
 	except KeyError, e:
 		pass
-        #for (real_member, member_loc), (real_member1, member_loc1) in (self.__iter__(loc), self.__iter__(loc1)):
+	
+	i = 0
 	for real_member, member_loc in self.__iter__(loc):
             member, member_loc = real_member.resolve(member_loc, depth+1)
-            if member_loc == 0:
+	    ind = self.members[i]
+	    real_member1 = self.type_list[ind]
+	    tmptype = self.type_list[ind]
+	    member_loc1 = loc1 + self.type_list[ind].offset
+	    member1, member_loc1 = real_member1.resolve(member_loc1, depth+1)
+            if member_loc == 0 or member_loc1 == 0:
+		i += 1
                 continue
 #	    seen.add((self, loc))
 #	    seen.add(self)
@@ -173,10 +180,11 @@ class Struct(SizedType):
 			    seen[self].add(loc)
 	    except KeyError, e:
 		    seen[self] = set([loc])
-            r = member.memcmp(member_loc, member_loc, depth+1, seen)
+            r = member.memcmp(member_loc, member_loc1, depth+1, seen)
             if not r:
                 iseq = False
                 break
+	    i += 1
         return iseq
         
     def __getitem__(self, item, loc=None):
@@ -248,7 +256,9 @@ class Array(Type):
 #	    if depth > MAX_DEPTH: return True
 
 	    iseq = True
+	    i = 0
 	    for member, member_loc in self.__iter__(loc, depth):
+		    member1, member_loc1 = self.__getitem__(i, loc1, depth)
 #		    seen.add((self, loc))
 #		    seen.add(self)
 		    try: 
@@ -256,10 +266,11 @@ class Array(Type):
 				    seen[self].add(loc)
 		    except KeyError, e:
 			    seen[self] = set([loc])
-		    r = member.memcmp(member_loc, member_loc, depth+1, seen)
+		    r = member.memcmp(member_loc, member_loc1, depth+1, seen)
 		    if not r:
 			    iseq = False
 			    break
+		    i += 1
 	    return iseq
 
     def get_element_size(self):
@@ -403,7 +414,7 @@ may raise a MemoryAccessException"""
 		pass
 	try:
 		val1 = self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
-		val2 = self.get_value1(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
+		val2 = self.get_value1(loc1, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
 		return val1 == val2
 	except MemoryAccessException, e:
 		return (self.name, e)
@@ -497,7 +508,7 @@ class Pointer(BaseType):
 #        if depth > MAX_DEPTH: return True
 
 	ptr = self.get_value(loc)
-	ptr1 = self.get_value(loc)
+	ptr1 = self.get_value1(loc1)
 	
 	if ptr == ptr1 == 0:
 		return True

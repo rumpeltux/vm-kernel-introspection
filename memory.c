@@ -182,7 +182,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	unsigned long mpte;
 	unsigned long pte;
 
-	printf("page lookup for: %p -> ", (void*)vaddr);
+	// printf("page lookup for: %p -> ", (void*)vaddr);
 
 	if(init_level4_pgt == 0) {
 		printf("init_level4_pgt not set\n");
@@ -206,9 +206,9 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	// init_level4_pgt_tr = (init_level4_pgt) & PHYSICAL_PAGE_MASK;
 	
 
-	printf("init_level4_pgt_tr: %p\n", (void*)init_level4_pgt_tr);
+	// printf("init_level4_pgt_tr: %p\n", (void*)init_level4_pgt_tr);
 
-	printf("pml4_index: %lu, pml4_addr_ind: %p\n", pml4_index(vaddr), (void*)init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr));
+	// printf("pml4_index: %lu, pml4_addr_ind: %p\n", pml4_index(vaddr), (void*)init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr));
 
 	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr), nmap, &myerrflag);
 	if(myerrflag != 0) {
@@ -227,8 +227,8 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 
 	pgd_paddr = (pml4) & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
-	printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
-	printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
+	// printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
+	// printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
 //	mpgd = *(unsigned long*)memory_access_raw(pgd_paddr, nmap, &myerrflag);
 	// mpgd = pgd_paddr;
 	// pgd = ((unsigned long*)pgd_paddr) + pgd_index(vaddr);
@@ -257,12 +257,12 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	pmd_paddr = pgd & PHYSICAL_PAGE_MASK;
 	myerrflag = 0;
 
-	printf("fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
+	// printf("fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
 
 	// mpmd = *(unsigned long*)memory_access_raw(pmd_paddr, nmap, &myerrflag);
 	
 	// printf("mpmd: %p\n", (void*)mpmd);
-	printf("pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
+	// printf("pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
 	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr), nmap, &myerrflag);
 	// pmd = ((unsigned long*)pmd_paddr) + pmd_index(vaddr);
 	if(myerrflag != 0) {
@@ -284,18 +284,19 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 		return 0;
 	}
 
-	printf("pmd: %p\n", (void*)pmd);
+	// printf("pmd: %p\n", (void*)pmd);
 	if(pmd & _PAGE_PSE) {
 		/* 2MB Page */
-		unsigned long physpage = (PAGEBASE(pmd) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
-		unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
+		// unsigned long physpage = (PAGEBASE(pmd) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
+		// unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
+		unsigned long physaddr = pmd;
 		return physaddr;
 	}
 
 	pte_paddr = pmd & PHYSICAL_PAGE_MASK;
 
-	printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
-	printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
+	// printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
+	// printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
 //	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
 	ptep = *(unsigned long*)memory_access_raw(pte_paddr + sizeof(unsigned long) * pte_index(vaddr), nmap, &myerrflag);
 	//ptep = ((unsigned long*)pte_paddr) + pte_index(vaddr);
@@ -316,7 +317,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 		return 0;
 	}
 
-	printf("value there: %p\n", (void*)ptep);
+	// printf("value there: %p\n", (void*)ptep);
 
 	// unsigned long physpage = (PAGEBASE(ptep) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
 
@@ -346,7 +347,7 @@ unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, in
 			// use the address_lookup function
 //			unsigned long kvaddr = page_lookup(virtual, nmap, errflag);
 			physaddr = page_lookup(virtual, nmap, errflag);
-			printf("kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
+			// printf("kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
 //			physaddr = map_kernel_virtual_to_physical(kvaddr, nmap, errflag);
 //			printf("pagain: %p -> %p\n", (void*)kvaddr, (void*)physaddr);
 

@@ -56,6 +56,8 @@ if __name__=='__main__':
 #  sys.exit(0)
 #
   for k,v in addresses.iteritems():
+	if k == None:
+		continue
 	symcounter += 1
   	try:
 		print k, ": ",
@@ -67,7 +69,7 @@ if __name__=='__main__':
 			print "true"
 			samecounter += 1
 	except MemoryAccessException, e:
-		print "MemoryAccessException"
+		print "MemoryAccessException: ", str(e)
 		pagedcounter += 1
 	except RecursingTypeException, e:
 		print "recursing type"
