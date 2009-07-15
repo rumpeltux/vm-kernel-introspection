@@ -165,10 +165,15 @@ class Struct(SizedType):
 	i = 0
 	for real_member, member_loc in self.__iter__(loc):
             member, member_loc = real_member.resolve(member_loc, depth+1)
-	    ind = self.members[i]
-	    real_member1 = self.type_list[ind]
-	    tmptype = self.type_list[ind]
-	    member_loc1 = loc1 + self.type_list[ind].offset
+	    if hasattr(self, "members"):
+	    	ind = self.members[i]
+	    	real_member1 = self.type_list[ind]
+	    	member_loc1 = loc1 + self.type_list[ind].offset
+	    elif hasattr(self, "entries"):
+		name, offset = (self.entries.items())[i]
+		real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
+	    else:
+		raise RuntimeError("not a struct and not a linked list")
 	    member1, member_loc1 = real_member1.resolve(member_loc1, depth+1)
             if member_loc == 0 or member_loc1 == 0:
 		i += 1
