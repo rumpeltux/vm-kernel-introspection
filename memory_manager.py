@@ -97,4 +97,4 @@ Members are conveniently accessable:
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)
     def memcmp(self):
 #        return self.__type.memcmp(self.__loc, 0, set([]))
-        return self.__type.memcmp(self.__loc, 0, {})
+        return self.__type.memcmp(self.__loc, self.__loc, 0, {})
