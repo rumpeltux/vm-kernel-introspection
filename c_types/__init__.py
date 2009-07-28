@@ -45,11 +45,11 @@ resolve() iterates until such a base-type is found."""
 
 returns a tuple (type, value)
     where value may be a String representation for all but BaseTypes"""
-        if depth > MAX_DEPTH: return "<unresolved @%x>" % loc
+        if depth > MAX_DEPTH: return ("<unresolved @%x>" % loc, None)
 	if self.base is not None:
 	    type, val = self.type_list[self.base].value(loc, depth+1)
             return (type, "%s: " % self.name + str(val))
-        return self.name and (self.name, 0) or ("[unknown:%x]" % self.id, 0)
+        return self.name and (self.name, None) or ("[unknown:%x]" % self.id, None)
 #    def memcmp(self, loc, depth=0, seen=set([])):
     def memcmp(self, loc, depth=0, seen={}):
 #	if (self, loc) in seen:
