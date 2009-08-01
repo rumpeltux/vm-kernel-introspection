@@ -158,6 +158,8 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 #define _PAGE_PRESENT   0x001
 #define _PAGE_PSE       0x080   /* 2MB page */
 
+#define GETPAGE(x) (((x) & ~0x8000000000000fff) + 0xffff880000000000)
+
 unsigned long phys_base = 0;
 unsigned long init_level4_pgt = 0xffffffff80201000;
 
@@ -201,9 +203,9 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 		init_level4_pgt_tr = ((init_level4_pgt) - KERNEL_PAGE_OFFSET);
 	} else {
 		init_level4_pgt_tr = init_level4_pgt;
-	} 
+	}
 	// init_level4_pgt_tr = (init_level4_pgt & ~0x8000000000000fff) + 0xffff880000000000;
-	// init_level4_pgt_tr = (init_level4_pgt) & PHYSICAL_PAGE_MASK;
+	init_level4_pgt_tr = (init_level4_pgt_tr) & PHYSICAL_PAGE_MASK;
 	
 
 	// printf("init_level4_pgt_tr: %p\n", (void*)init_level4_pgt_tr);
@@ -226,6 +228,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	}
 
 	pgd_paddr = (pml4) & PHYSICAL_PAGE_MASK;
+	
 	myerrflag = 0;
 	// printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
 	// printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
@@ -296,6 +299,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	pte_paddr = pmd & PHYSICAL_PAGE_MASK;
 
 	// printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
+
 	// printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
 //	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
 	ptep = *(unsigned long*)memory_access_raw(pte_paddr + sizeof(unsigned long) * pte_index(vaddr), nmap, &myerrflag);
@@ -322,8 +326,8 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	// unsigned long physpage = (PAGEBASE(ptep) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
 
 	// unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
-//	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
-	unsigned long physaddr = ptep;
+	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
+	// unsigned long physaddr = ptep;
 
 	return physaddr;
 }
@@ -333,12 +337,12 @@ unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, in
 		unsigned long physaddr = 0;
 		if(!((virtual >= VMALLOC_START && virtual <= VMALLOC_END) ||
 	   	     (virtual >= VMEMMAP_VADDR && virtual <= VMEMMAP_END) ||
-	             (virtual >= MODULES_VADDR && virtual <= MODULES_END))) {
+	             (virtual >= MODULES_VADDR && virtual <= MODULES_END))) { 
 			if (virtual >= (unsigned long)__START_KERNEL_map) {
 				*errflag = 0;
 				physaddr = ((virtual) - (unsigned long)__START_KERNEL_map + phys_base);
 				// printf("start_kern_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
-			} else /* (virtual >= (unsigned long)KERNEL_PAGE_OFFSET) */ {
+			} else /* if(virtual >= (unsigned long)KERNEL_PAGE_OFFSET) */ {
 				*errflag = 0;
 				physaddr = ((virtual) - KERNEL_PAGE_OFFSET);
 				// printf("pg_offs_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
