@@ -25,32 +25,36 @@ class Type:
     base = None
 
     def get_base(self):
-	"""for convenient user access
-returns a Type instance of this type’s base-type.
-e.g. a Pointer to a Struct would have a base-type of Struct"""
+	"""
+	for convenient user access
+	returns a Type instance of this type’s base-type.
+	e.g. a Pointer to a Struct would have a base-type of Struct
+	"""
 	if self.base in self.type_list:
 	      return self.type_list[self.base]
     def resolve(self, loc=None, depth=0):
-	"""resolve the type
+	"""
+	resolve the type
 
-Some types are just intermediate Types that reference another Type
-through the base property. E.g a Variable is a type on its own but
-has a base-Type which is the Type of the Variable.
+	Some types are just intermediate Types that reference another Type
+	through the base property. E.g a Variable is a type on its own but
+	has a base-Type which is the Type of the Variable.
 
-resolve() iterates until such a base-type is found."""
+	resolve() iterates until such a base-type is found.
+	"""
 	return (self, loc)
     
     def value(self, loc, depth=0):
-	"""assume memory at location loc is of our type
+        """
+	assume memory at location loc is of our type
 
-returns a tuple (type, value)
-    where value may be a String representation for all but BaseTypes"""
-        if depth > MAX_DEPTH: return ("<unresolved @%x>" % loc, None)
+	tries to return a python-like representation of the object
+	"""
+	if depth > MAX_DEPTH: return UnresolvedException(self, loc)
 	if self.base is not None:
-	    type, val = self.type_list[self.base].value(loc, depth+1)
-            return (type, "%s: " % self.name + str(val))
-        return self.name and (self.name, None) or ("[unknown:%x]" % self.id, None)
-#    def memcmp(self, loc, depth=0, seen=set([])):
+	    return self.type_list[self.base].value(loc, depth+1)
+	return None
+
     def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 	try:
@@ -76,19 +80,20 @@ returns a tuple (type, value)
 	self.id = _new_id(self.type_list)
 	self.type_list[self.id] = self
     def get_name(self):
-	"""returns a likely name for the type by iterating through the Types base-types
-returns "void" if none is available"""
+	"""
+	returns a likely name for the type by iterating through the Types base-types
+	returns "void" if none is available
+	"""
 	name = self.name
 	base = self.base
 # is this an error? Or should it be fixed like i suggested in the comment
-#	try:
+# KeyErrors may not happen and indicate an error in the data model, so
+# we should rather fix the model, but nothing here
 	while not name and base is not None:
 	    name = self.type_list[self.base].name
 	    if base == self.type_list[self.base].base: break
 	    base = self.type_list[self.base].base
 	return name if name else "undef"
-#	except KeyError, e:
-#		return "void"
 
     def __repr__(self):
 	return "<%s instance '%s'>" % (self.__class__, self.get_name())
@@ -99,6 +104,12 @@ returns "void" if none is available"""
 	while t.base is not None and t.base in self.type_list:
 	  t = self.type_list[t.base]
 	  yield t
+
+class UnresolvedException(Exception):
+  def __init__(self, type, loc):
+    self.type = type
+    self.loc  = loc
+    Exception.__init__(self, "unresolved type %s at 0x%x" % (type, loc))
 
 class Void(Type):
     "A None Type that is used for void * or other types with missing base-information"
@@ -113,7 +124,7 @@ class Void(Type):
     def memcmp(self, loc, loc1, depth=0, seen={}):
 	return None
     def value(self, loc, depth=0):
-	return ("void", None)
+	return None
     
 class SizedType(Type):
     "This is a Type with size-information associated"
@@ -125,24 +136,18 @@ class Struct(SizedType):
 	"adds a new member"
 	self.members.append(type.id)
     
-    def _value(self, loc, depth=0):
-	"returns a c-like string representation of this struct’s values"
-	#print "struct %s" % self.name, self.id, loc
-	out = ""
+    def value(self, loc, depth=0):
+	"returns a dictionary filled with this struct’s member’s values"
+	out = {}
         for real_member, member_loc in self.__iter__(loc):
 	    member, member_loc = real_member.resolve(member_loc, depth+1)
 	    if member_loc == 0: #prevent NullPointerExceptions
-	      out += "\tvoid * %s = 0\n" % real_member.get_name()
-	      continue
-	    type, val = member.value(member_loc, depth+1)
-	    type_str = (type != member.name) and "(%s)" % type or ""
-            out += "\t%s%s %s = " % (member.name and member.name or "", type_str, real_member.name) + str(val).replace("\n","\n\t") + "\n"
+	      value = None
+	    else:
+	      value = member.value(member_loc, depth+1)
+	    name_str = real_member.name and real_member.name or ("member_%x" % real_member.offset)
+	    out[name_str] = value
         return out
-
-    def value(self, loc, depth=0):
-	"returns a c-like string representation of this struct including its values"
-	if depth > MAX_DEPTH: return ("struct", "struct %s { … }" % self.get_name())
-        return ("struct", "struct %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
 
     def memcmp(self, loc, loc1, depth=0, seen={}):
         iseq = True
@@ -193,10 +198,12 @@ class Struct(SizedType):
         return iseq
         
     def __getitem__(self, item, loc=None):
-        """returns the Type of this Structs member named item.
-returns None if no such member exists
+        """
+	returns the Type of this Structs member named item.
+	returns None if no such member exists
 
-if loc is set, returns (member_type, member_location)"""
+	if loc is set, returns (member_type, member_location)
+	"""
 	for i in self.members:
 	  if self.type_list[i].name == item:
 	    item = self.type_list[i]
@@ -216,8 +223,6 @@ class Union(Struct):
     "This type represents a C-union which is basically a Struct where all members have the offset 0."
     def __str__(self, depth=0):
         return "union %s {\n%s}" % (self.get_name(), self.stringy(depth))
-    def value(self, loc, depth=0):
-	return ("union", "TODO union %s {\n%s}" % (self.get_name(), self._value(loc, depth)))
     def memcmp(self, loc, loc1, depth=0, seen={}):
 	return True
 
@@ -235,18 +240,14 @@ class Array(Type):
         return "<Array[%s] %s>" % (self.bound, self.get_name())
 	
     def value(self, loc, depth=0):
-	"returns a c-like string-representation of an Array of this type located at location loc"
-	if depth > MAX_DEPTH: return ("array", "…")
+	"returns a sequence of all elements"
+	if depth > MAX_DEPTH: return UnresolvedTypeException(self, loc)
 	
-	ret = "%s {\n" % self.get_name()
-
-	i = 0
+	ret = []
 	for member, member_loc in self.__iter__(loc, depth):
-	  type, val = member.value(member_loc, depth+1)
-	  ret += "\t[%d]: %s = %s\n" % (i, type, str(val).replace("\n", "\n\t"))
-	  i += 1
-	if self.bound is None: ret += "\t…\n"
-	return ("array", ret + "}")
+	  ret.append( member.value(member_loc, depth+1) )
+
+	return ret
 
     def memcmp(self, loc, loc1, depth=0, seen={}):
 #	    if (self, loc) in seen:
@@ -309,7 +310,11 @@ class Array(Type):
 	  yield self.__getitem__(i, loc, depth)
 	  
     def __len__(self):
-	return self.bound+1 if self.bound else 1 #TODO 1 is not a good default, but __nonzero__ checks __len__ so we cannot return 0 or None
+	return self.bound+1 if self.bound else 0
+	
+    def __nonzero__(self):
+	"needs to be overriden, as the object might be nonzero (i.e. not None) even though __len__() returns 0"
+	return True
 
 class Subrange(Type):
     "ArraySubrange-Type for use with Array. Holds bounds information"
@@ -319,9 +324,17 @@ class Function(Type):
     def __str__(self, depth=0):
         return "%s()" % self.get_name()
     def value(self, loc, depth=0):
-	return ("function", "TODO func (%s())" % self.get_name())
+	"returns a callable function object"
+	return KernelFunction(loc, type)
     def memcmp(self, loc, loc1, depth=0, seen={}):
 	return True
+
+class KernelFunction:
+    def __init__(self, location, type):
+      self.location = location
+      self.type = type
+    def __call__(self):
+      raise Exception("Unimplemented. Cannot yet call kernel functions")
 
 class RecursingTypeException(RuntimeError):
   pass
@@ -400,13 +413,12 @@ may raise a MemoryAccessException"""
 # 	return memory.access(mem_type, loc, 1)
 
     def value(self, loc, depth=0):
-        #return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
+        "try to access memory at location loc and return its value"
 	try:
-#	  if loc == 0xffffe200006e5a78:
-#		  print "puller!", self.name
-	  return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
+	  return self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)])
 	except MemoryAccessException, e:
-	  return (self.name, e)
+	  return e
+
     def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
@@ -492,14 +504,14 @@ class Pointer(BaseType):
 	  return "%s *" % self.type_list[self.base].get_name()
 	return "undef *"
     def value(self, loc, depth=0):
-	if depth > MAX_DEPTH: return (self.get_type_name(), "…")
+	if depth > MAX_DEPTH: return UnresolvedException(self, loc)
 
 	ptr = self.get_value(loc) # unsigned long
 	
 	if self.base is not None and ptr != 0:
 	      return self.type_list[self.base].value(ptr, depth+1)
-	else:
-	      return (self.get_type_name(), ptr)
+	return None
+
     def memcmp(self, loc, loc1, depth=0, seen={}):
 #	if (self, loc) in seen:
 #	if self in seen:
