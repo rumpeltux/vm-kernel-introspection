@@ -64,7 +64,7 @@ def generate_report():
     dict_join = lambda x: "\n".join(["%15s := %d" % (k, v) for k,v in x.iteritems()])
 
     #summary
-    errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0, 'pointers': 0}
+    errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0}
 
     report = add(doc, "report")
     
@@ -98,9 +98,7 @@ def generate_report():
 		node = add(doc_hash, "hlist_node")
 		set_node_info(node, s)
 		node.setAttribute("size", str(s.size))
-		pointers = check_node_for_pointers(s)
-		if pointers: errors['pointers'] += 1
-		node.setAttribute("pointers", str(pointers))
+		node.setAttribute("pointers", str(check_node_for_pointers(s)))
 		
 		member = add(node, "member")
 		set_node_info(member, m)

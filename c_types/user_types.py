@@ -2,26 +2,63 @@
 from c_types import *
 
 class String(Array):
-    """Represents a String in Memory. Should be initialised with a Char-Array
-e.g.: String(Array(type_of('unsigned char')))"""
+    """
+    represents a String in memory
+    
+    should be initialised with a Char-Array or Pointer to Char
+    e.g.
+	String(Array(type_of('unsigned char')))
+	String(Pointer(type_of('char')))
+    """
     def __init__(self, typ):
 	self.type_list = typ.type_list
 	self.base = typ.base
-	self.bound = typ.bound
-	self.register()
-    def value(self, loc, depth=0):
-	out = ""
-	base = self.type_list[self.base]
+	self.bound = typ.bound if isinstance(typ, Array) else None
+	#self.register()
 	
-	return ('string', base.get_value(loc, 10)) # 10 == MEMORY_TYPE_NULLTERMINATED_STRING
+    def takeover(self, typ):
+	"replaces all occurances of typ in the global type list with this entry"
+	self.id = typ.id
+	self.type_list[id] = self
+	
+    def value(self, loc, depth=0):
+	base = self.type_list[self.base]
+	return base.get_value(loc, 10) # 10 == MEMORY_TYPE_NULLTERMINATED_STRING
+	
+	#out = ""
+	#i = 0
+	#while 1:
+	  #typ, val = base.value(loc + base.size*i, depth+1)
+	  #if type(val) != int or val > 255 or val == 0 or val < -128: break
+	  #out += chr((val+256)%256)
+	  #i += 1
+	#return out
+
+class NullTerminatedArray(Array):
+    """
+    Implements an Array type that is terminated by a NULL value
+    either a NULL-Pointer if the elements are pointers,
+    or 0 if the elements are other basic values
+    
+    The class provides only a custom iterator.
+    High-level functions such as __len__ will not produce correct
+    results, as the output is not dependent on the type, but on the
+    type and memory location.
+    """
+    def __iter__(self, loc, depth=MAX_DEPTH):
+	base = self.get_base()
 	i = 0
 	while 1:
-	  typ, val = base.value(loc + base.size*i, depth+1)
-	  if type(val) != int or val > 255 or val == 0 or val < -128: break
-	  out += chr((val+256)%256)
+	  member, member_loc = self.__getitem__(i, loc, depth)
+	  
+	  if isinstance(base, Pointer):
+	    if base.get_pointer_address(member_loc) == 0:
+	      break
+	  elif isinstance(base, BaseType) and base.value(member_loc) == 0:
+	    break
+	    
+	  yield member, member_loc
 	  i += 1
-	return ('string', out)
-
 
 class KernelLinkedList(Struct):
     "Implements the linked lists which the kernel uses using preprocessor macros"
@@ -48,15 +85,22 @@ class KernelLinkedList(Struct):
 	if not loc is None:
 	  return self.type_list[self._parent], loc - self.offset
 	return self.type_list[self._parent]
+    def get_pointer_value(self, loc, offset):
+	if loc == 0: raise NullPointerException(repr(self))
+	ptr = resolve_pointer(loc + offset)
+	if ptr == 0: raise NullPointerException(repr(self))
+	#print >>sys.stderr, "%x, %x" % (ptr, loc)
+	return ptr
+	
     def __getitem__(self, item, loc=None):
 	if loc is None: return self.parent()
-	return self.parent(resolve_pointer(loc + self.entries[item]))
+	return self.parent(self.get_pointer_value(loc, self.entries[item]))
     def __iter__(self, loc=None):
 	for name,offset in self.entries.iteritems():
 	  if loc is None:
 	    yield self.parent()
 	  else:
-	    yield self.parent(resolve_pointer(loc+offset))
+	    yield self.parent(self.get_pointer_value(loc,offset))
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))
 			  for name in self.entries])

@@ -13,8 +13,10 @@ pointer_to = lambda name: Pointer(type_of(name), types)
 kernel_name = lambda name: Memory(*addresses[name])
 
 def get_parent_names(s, v=None, d=0):
-    """returns a string representation of references to Type s
-    e.g. "{foo, bar} ← s.name" """
+    """
+    returns a string representation of references to Type s
+    e.g. "{foo, bar} ← s.name"
+    """
     if v is None: v = set([s.id])
     if len(s.parents) == 0 or d>1: return s.get_name()
     l = []
@@ -25,8 +27,10 @@ def get_parent_names(s, v=None, d=0):
     return "{%s} ← %s" % (", ".join(l), s.get_name())
 
 def prepare_void_references(types):
-    """void references (type.base is None) are not accounted for during the parsing process
-this function replaces those None references for pointers and Consts by the Void-Type which has id 0"""
+    """
+    void references (type.base is None) are not accounted for during the parsing process
+    this function replaces those None references for Pointers and Consts by the Void-Type which has id 0
+    """
     void = Void(types)
     for id, typ in types.iteritems():
       if isinstance(typ, Pointer) or isinstance(typ, Const):
@@ -34,13 +38,15 @@ this function replaces those None references for pointers and Consts by the Void
 	  typ.base = void.id #(void.id == 0)
 
 def handle_array(array, member, struct, cls):
-  """Replacing struct list_heads is difficult for Arrays
+  """
+  Replacing struct list_heads is difficult for Arrays
   So here we implement the special handling for this case.
   
   We create a pseudo member element for each array idx
   and then transform it into a KernelLinkedList that gets
   appended to the original data structure.
-  Finally the obsolete array is removed from there"""
+  Finally the obsolete array is removed from there
+  """
   
   idx = 0
   for entry,offset in array.__iter__(loc=0):
@@ -56,9 +62,11 @@ def handle_array(array, member, struct, cls):
   #del types[member.id]
 
 def prepare_list_heads():
-  """kernel lists are a special thing and need special treatment
+  """
+  kernel lists are a special thing and need special treatment
   this routine replaces all members of type struct list_head with
-  an appropriate replacement that takes care handling these lists"""
+  an appropriate replacement that takes care handling these lists
+  """
   
   member_list = []
   array_handlers = []
@@ -80,12 +88,30 @@ def prepare_list_heads():
   for new_member, old_member in member_list:
       new_member.takeover(old_member)
 
+def prepare_strings():
+    """
+    Assume that all pointers to a char-type are strings.
+    Modify that data model accordingly
+    """
+    typ_list = []
+
+    for k,v in types.iteritems():
+	if isinstance(v, Pointer):
+	    b = v.get_base()
+	    if isinstance(b, BaseType) and (b.name == "char" or b.name == "unsigned char"):
+		typ_list.append((String(v), v))
+
+    for s,v in typ_list:
+      s.takeover(v)
+	    
+
 def init(filename=None, parents=False):
     "helper function to initialise a dump-session, filename is the path to the memory dump e.g /dev/mem"
     import memory, type_parser
     global types, names, addresses
     if filename is not None:
-	memory.map(filename, 20000, 0)
+	filesize = 4 * 1024**3 if filename == "/dev/mem" else os.path.getsize(filename)
+	memory.map(filename, filesize, 20000, 0)
     types, memory = type_parser.load(open("data.dumpc"))
 
     if parents:
@@ -101,13 +127,14 @@ def init(filename=None, parents=False):
       addresses[types[v].name] = (k, types[v])
 
     #some more cleanup i forgot once. is already obsolete…
-    pat3= re.compile('DW_OP_plus_uconst: (\d+)')
-    for k,v in types.iteritems():
-	if hasattr(v, "offset") and type(v.offset) != int:
-	    v.offset = int(pat3.search(v.offset).group(1))
+    #pat3= re.compile('DW_OP_plus_uconst: (\d+)')
+    #for k,v in types.iteritems():
+	#if hasattr(v, "offset") and type(v.offset) != int:
+	    #v.offset = int(pat3.search(v.offset).group(1))
     
     #load_additional_symbols()
     prepare_list_heads()
+    prepare_strings()
     prepare_void_references(types)
 
     return names, types, addresses
