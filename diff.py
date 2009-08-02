@@ -33,9 +33,9 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(5000)
 
-#  temp = kernel_name('acpi_gbl_root_table_list')
-#  print temp.memcmp()
-#  sys.exit(0) 
+  temp = kernel_name('init_task')
+  print temp.tasks.next.tasks.next
+  sys.exit(0) 
 
   symcounter = 0
   samecounter = 0

@@ -362,7 +362,7 @@ may raise a MemoryAccessException"""
 	if loc == 0: raise NullPointerException(str(info))
 	if loc < 0xffff880000000000:
 		# this is a userspace virtual address!
-		raise UserspaceVirtualAddressException("userspace paging not implemented!")
+		raise UserspaceVirtualAddressException("userspace paging not implemented: 0x%x" % loc)
 	try:
 		physloc = memory.virt_to_phys(loc, 0)
 		return memory.access(mem_type, physloc, 0)
@@ -382,7 +382,7 @@ may raise a MemoryAccessException"""
 	if loc == 0: raise NullPointerException(str(info))
 	if loc < 0xffff880000000000:
 		# this is a userspace virtual address!
-		raise UserspaceVirtualAddressException("userspace paging not implemented!")
+		raise UserspaceVirtualAddressException("userspace paging not implemented: 0x%x" % loc)
 	try:
 		physloc = memory.virt_to_phys(loc, 1)
 		return memory.access(mem_type, physloc, 1)
