@@ -301,9 +301,9 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 		// printf("2mb page\n");
 		/* 2MB Page */
 		// unsigned long physpage = (PAGEBASE(pmd) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
-		unsigned long physaddr = pmd & PHYSICAL_PAGE_MASK;
+		// unsigned long physaddr = pmd & PHYSICAL_PAGE_MASK;
 		//unsigned long physaddr = pmd;
-		// unsigned long physaddr = (pmd & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
+		unsigned long physaddr = (pmd & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
 		return physaddr;
 	}
 
@@ -339,8 +339,11 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	// unsigned long physpage = (PAGEBASE(ptep) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
 
 	// unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
-	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
-//	unsigned long physaddr = (ptep & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
+#ifdef VERBOSEDEBUG
+	printf("page_offset: %p\n", (void*) (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK));
+#endif
+//	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
+	unsigned long physaddr = (ptep & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK);
 //	unsigned long physaddr = ptep;
 
 	return physaddr;
