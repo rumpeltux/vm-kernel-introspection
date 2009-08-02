@@ -104,6 +104,12 @@ class KernelLinkedList(Struct):
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))
 			  for name in self.entries])
+    def value(self, loc, depth=MAX_DEPTH):
+	# override this, since Struct.value will use the types name, which we suppress
+	out = {}
+	for key in self.entries:
+	  out[key] = self[key]
+	return out
 
 class KernelSingleLinkedList(KernelLinkedList):
     entries = {'next': 0}

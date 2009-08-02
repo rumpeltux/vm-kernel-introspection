@@ -105,8 +105,16 @@ def prepare_strings():
       s.takeover(v)
 	    
 
-def init(filename=None, parents=False):
-    "helper function to initialise a dump-session, filename is the path to the memory dump e.g /dev/mem"
+def init(filename=None, parents=False, system_map=False):
+    """
+    helper function to initialise a dump-session.
+
+    filename is the path to the memory dump e.g /dev/mem.
+    if parents is set, parent relationships for data types will be available.
+    if system_map if set to a filename, this file is interpreted as
+      a System.map and all its symbols will become available in the program (TODO)
+      additionally other sources to load symbols will be loaded from the memory image
+    """
     import memory, type_parser
     global types, names, addresses
     if filename is not None:
@@ -132,7 +140,12 @@ def init(filename=None, parents=False):
 	#if hasattr(v, "offset") and type(v.offset) != int:
 	    #v.offset = int(pat3.search(v.offset).group(1))
     
-    #load_additional_symbols()
+    if filename is not None and system_map:
+      #TODO: load_system_map(system_map)
+      load_additional_symbols()
+
+    #TODO effizienter implementieren. 
+    #ev. callbacks die an den einzelnen stellen registriert werden
     prepare_list_heads()
     prepare_strings()
     prepare_void_references(types)
