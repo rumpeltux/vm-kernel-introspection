@@ -27,7 +27,7 @@ Members are conveniently accessable:
     def get_value(self, depth=MAX_DEPTH):
 	"returns the representation presented by this Memory’s type and location"
         return self.__value(depth)
-    def __value(self, depth):
+    def __value(self, depth=MAX_DEPTH):
         #type, loc = self.type.resolve(self.loc)
         #return type.value(loc)
         return self.__type.value(self.__loc, depth)
