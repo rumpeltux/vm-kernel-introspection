@@ -24,13 +24,13 @@ Members are conveniently accessable:
     def get_loc(self):
 	"returns the location associated with this Memory-object"
         return self.__loc
-    def get_value(self):
+    def get_value(self, depth=MAX_DEPTH):
 	"returns the representation presented by this Memory’s type and location"
-        return self.__value()
-    def __value(self):
+        return self.__value(depth)
+    def __value(self, depth):
         #type, loc = self.type.resolve(self.loc)
         #return type.value(loc)
-        return self.__type.value(self.__loc)[1]
+        return self.__type.value(self.__loc, depth)
     def __iseq(self, other):
 	return 
     def resolve(self):
@@ -56,8 +56,10 @@ Members are conveniently accessable:
         # print key, repr(this), loc, hex(loc)
 	
         if not isinstance(this, Struct): return None
-	member, location = this.__getitem__(key, loc)
-	if member is None: raise KeyError("%s has no attribute %s" % (repr(this), key))
+	member_tuple = this.__getitem__(key, loc)
+	if member_tuple is None: raise KeyError("%s has no attribute %s" % (repr(this), key))
+
+	member, location = member_tuple
         return Memory(location, member)
         
     def __getitem__(self, idx):
@@ -98,3 +100,40 @@ Members are conveniently accessable:
     def memcmp(self):
 #        return self.__type.memcmp(self.__loc, 0, set([]))
         return self.__type.memcmp(self.__loc, self.__loc, 0, {})
+
+    def to_xml(self, depth=MAX_DEPTH):
+	return to_xml(self.__value(depth)).toprettyxml(indent="  ")
+	
+
+def to_xml(value):
+    from xml.dom.minidom import Document
+    doc = Document()
+    
+    #some xml helpers
+    def add(node, name):
+	elem = doc.createElement(name)
+	node.appendChild(elem)
+	return elem
+      
+    text = lambda node, text: node.appendChild(doc.createTextNode(text))
+
+    node = add(doc, "value")
+    
+    def save(node, value):
+	if type(value) == dict:
+	    for k, v in value.iteritems():
+		save(add(node, k), v)
+	elif type(value) == list or type(value) == tuple:
+	    for i in range(0, len(value)):
+		elem = add(node, "element")
+		elem.setAttribute("index", str(i))
+		save(elem, value[i])
+	elif isinstance(value, Exception):
+	    node.setAttribute("exception", str(value.__class__.__name__))
+	    node.setAttribute("description", str(value))
+	    #save(add(node, "exception"), value.args)
+	else:
+	    node.setAttribute("value", str(value))
+    
+    save(node, value)
+    return doc

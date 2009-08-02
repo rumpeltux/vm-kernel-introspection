@@ -6,7 +6,7 @@
 #include <sys/types.h>
 
 PyDoc_STRVAR(memory__doc__,        "Arbitrary Memory Access Module");
-PyDoc_STRVAR(memory_map__doc__,    "filename -> open filename for access");
+PyDoc_STRVAR(memory_map__doc__,    "filename, filesize, map_size, map_number -> open filename for access");
 PyDoc_STRVAR(memory_set_init_level4_pgt__doc__,    "addr -> set the init_level4_pgt pagetable address");
 PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
 PyDoc_STRVAR(memory_virt_to_phys__doc__, "virt -> maps kernel virtual address to physical address");
@@ -410,7 +410,7 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     long mymap_size = 0;
     unsigned long tempfsize = 0;
 
-    if (!PyArg_ParseTuple(args, "ski", &filename, &mymap_size, &nmap))
+    if (!PyArg_ParseTuple(args, "skki", &filename, &tempfsize, &mymap_size, &nmap))
         return NULL;
 
     FILE* sfd = fopen(filename, "r");
@@ -418,11 +418,11 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
 	    PyErr_SetString(PyExc_IOError, strerror(errno));
 	    return NULL;
     }
-    fseek(sfd, 0, SEEK_END);
-    tempfsize = ftell(sfd);
-//    printf("%s: %li\n", filename, tempfsize);
-    fseek(sfd, 0, SEEK_SET);
-    fclose(sfd);
+//     fseek(sfd, 0, SEEK_END);
+//     tempfsize = ftell(sfd);
+// //    printf("%s: %li\n", filename, tempfsize);
+//     fseek(sfd, 0, SEEK_SET);
+//     fclose(sfd);
 
     if(nmap == 0) { 
 	    map_size = mymap_size;

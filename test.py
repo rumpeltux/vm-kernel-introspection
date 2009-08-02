@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 from tools import *
 
-names, types, addresses = init(parents=True)
+names, types, addresses = init("/dev/mem", parents=True)
+it = kernel_name('init_task')
+print it.to_xml()
+
   #"/dev/mem"
   #"../ubuntu_memdump_before_terminal.dump"
 
 if __name__=='__main__':
+  pass
   #ksize = kernel_name('ksize')  
   #print ksize
   #pgt = kernel_name('__ksymtab_init_level4_pgt')
