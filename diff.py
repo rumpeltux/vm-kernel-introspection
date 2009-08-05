@@ -7,7 +7,7 @@ from cPickle import load
 from memory_manager import *
 import memory, type_parser, bincmp, sys
 
-memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
+memory.map("../ubuntu_memdump_before_terminal.dump", 600000000, 20000, 0)
 typesr, memoryl = type_parser.load(open("data.dumpc"))
 #forward, backward = load(open("sysmap.dump"))
 
@@ -24,18 +24,18 @@ if __name__=='__main__':
  # pgt4  = cast(pgt.value, Pointer(type_of('init_level4_pgt'))) #die andere möglichkeit
  # print pgt_t.get_value()[1]
   #dump_pagetables(pgt4, "/tmp/pages")
-  memory.map("../ubuntu_memdump_before_terminal.dump", 20000, 0)
-  memory.map("../ubuntu_memdump_after_terminal.dump", 20000, 1)
+  memory.map("../ubuntu_memdump_before_terminal.dump", 600000000, 20000, 0)
+  memory.map("../ubuntu_memdump_after_terminal.dump", 600000000, 20000, 1)
 
   pgt = kernel_name('__ksymtab_init_level4_pgt')
   memory.set_init_level4_pgt(int(pgt.value.get_value()))
 
 # recursionlimit at 1000 per default, but thats not enough
-  sys.setrecursionlimit(5000)
+  sys.setrecursionlimit(8000)
 
-  temp = kernel_name('init_task')
-  print temp.tasks.next.tasks.next
-  sys.exit(0) 
+#  temp = kernel_name('ioapic_resources')
+#  print temp.memcmp()
+#  sys.exit(0) 
 
   symcounter = 0
   samecounter = 0
