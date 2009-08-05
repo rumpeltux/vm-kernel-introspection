@@ -5,6 +5,7 @@ from c_types import *
 from c_types.user_types import *
 
 from memory_manager import *
+import os
 
 #type_of_address = lambda y: types[memory[y]]
 cast = lambda memory, type: Memory(memory.get_loc(), type)
