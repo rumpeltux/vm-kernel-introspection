@@ -121,7 +121,11 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 #define VMALLOC_START       0xffffc20000000000UL
 #define VMALLOC_END         0xffffe1ffffffffffUL
 #define USERSPACE_TOP       0x0000800000000000UL
-#define KERNEL_PAGE_OFFSET  0xffff880000000000UL
+//#define KERNEL_PAGE_OFFSET  0xffff880000000000UL
+#define KERNEL_PAGE_OFFSET_2_6_11         0xffff810000000000UL
+#define KERNEL_PAGE_OFFSET_2_6_27         0xffff880000000000UL
+#define KERNEL_PAGE_OFFSET KERNEL_PAGE_OFFSET_2_6_27
+
 #define MODULES_VADDR       0xffffffff88000000UL
 #define MODULES_END         0xfffffffffff00000UL
 
