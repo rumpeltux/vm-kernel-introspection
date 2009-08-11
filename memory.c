@@ -182,6 +182,8 @@ unsigned long init_level4_pgt = 0xffffffff80201000;
 
 /* errflag will be set to 1 on error will be set to 2 if page is not 
  * present
+ * for an overview see:
+ * http://linux-mm.org/PageTableStructure
  */
 unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	int myerrflag = 0;
