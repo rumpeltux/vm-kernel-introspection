@@ -11,7 +11,7 @@ def Type_crep(self, loc, depth=0):
     assume memory at location loc is of our type
 
     returns a tuple (type, value)
-    where value may be a String representation for all but BaseTypes
+    where value may be a String representation for all but BasicTypes
     """
     if depth > MAX_DEPTH: return ("<unresolved @%x>" % loc, None)
     if self.base is not None:
@@ -60,7 +60,7 @@ def Array_crep(self, loc, depth=0):
 def Function_crep(self, loc, depth=0):
     return ("function", "TODO func (%s())" % self.get_name())
 
-def BaseType_crep(self, loc, depth=0):
+def BasicType_crep(self, loc, depth=0):
     try:
       return (self.name, self.get_value(loc, base_type_to_memory["%s-%d" % (self.name, self.encoding)]))
     except MemoryAccessException, e:
@@ -80,7 +80,7 @@ def Pointer_crep(self, loc, depth=0):
 Struct.crep   =   Struct_crep
 Type.crep     =     Type_crep
 Function.crep = Function_crep
-BaseType.crep = BaseType_crep
+BasicType.crep = BasicType_crep
 Pointer.crep  =  Pointer_crep
 Union.crep    =    Union_crep
 Array.crep    =    Array_crep

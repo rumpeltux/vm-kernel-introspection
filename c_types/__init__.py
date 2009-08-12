@@ -357,7 +357,7 @@ class PageNotPresent(MemoryAccessException):
 
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
 
-class BaseType(SizedType):
+class BasicType(SizedType):
     """
     This is for real base-types like unsigned int
     
@@ -482,7 +482,7 @@ class Member(Variable):
     "This is a StructureMember"
     offset = 0
 
-class Pointer(BaseType):
+class Pointer(BasicType):
     "Represents a Pointer to another type"
     def __init__(self, info):
 	"Creates a Pointer pointing to memory of type info"
@@ -582,7 +582,7 @@ class Typedef(Type):
 		seen[self] = set([loc])
 	return self.type_list[self.base].memcmp(loc, loc1, depth-1, seen)
 
-resolve_pointer   = lambda loc: BaseType.get_value(loc)
+resolve_pointer   = lambda loc: BasicType.get_value(loc)
 
 class UnwantedType(Type):
     pass

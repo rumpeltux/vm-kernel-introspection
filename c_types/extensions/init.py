@@ -35,7 +35,7 @@ def Array_append(self, type):
     "append a Subrange-Type. copies the bound-value which is all we want to now"
     self.bound = type.bound
 
-def BaseType___init__(self, info, type_list):
+def BasicType___init__(self, info, type_list):
     SizedType.__init__(self, info, type_list)
     if "encoding" in info:
 	self.encoding = int(info["encoding"][:2])
@@ -45,7 +45,7 @@ def Member___init__(self, info, type_list=None):
     Variable.__init__(self, info, type_list)
 
 def Pointer___init__(self, info, type_list=None):
-    BaseType.__init__(self, info, type_list)
+    BasicType.__init__(self, info, type_list)
 
 def Subrange___init__(self, info, type_list):
     Type.__init__(self, info, type_list)
@@ -60,7 +60,7 @@ Array.__init__     =     Array___init__
 
 Array.append       =     Array_append
 
-BaseType.__init__  =  BaseType___init__
+BasicType.__init__  =  BasicType___init__
 Member.__init__    =    Member___init__
 Pointer.__init__   =   Pointer___init__
 

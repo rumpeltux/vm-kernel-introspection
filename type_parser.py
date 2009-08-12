@@ -55,7 +55,7 @@ def read_types(f):
     baseType = None
     
     #which Class corresponds to which tag-value
-    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable, 'base_type': BaseType, 'typedef': Typedef, 'const_type': Const}
+    classes = {'structure_type': Struct, 'union_type': Union, 'member': Member, 'array_type': Array, 'subroutine_type': Function, 'enumeration_type': Enum, 'enumerator': Enumerator, 'pointer_type': Pointer, 'subrange_type': Subrange, 'variable': Variable, 'base_type': BasicType, 'typedef': Typedef, 'const_type': Const}
     #which tag-values to ignore
     ignores = {'formal_parameter': 1, 'subprogram': 1, 'inlined_subroutine': 1, 'lexical_block': 1}
     i = 0

@@ -54,7 +54,7 @@ class NullTerminatedArray(Array):
 	  if isinstance(base, Pointer):
 	    if base.get_pointer_address(member_loc) == 0:
 	      break
-	  elif isinstance(base, BaseType) and base.value(member_loc) == 0:
+	  elif isinstance(base, BasicType) and base.value(member_loc) == 0:
 	    break
 	    
 	  yield member, member_loc
