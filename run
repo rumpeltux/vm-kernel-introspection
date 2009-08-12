@@ -1,0 +1,11 @@
+#!/usr/bin/python -i
+from tools import *
+import sys
+
+f = '/dev/mem'
+if len(sys.argv) == 2:
+	f = sys.argv[1]
+
+print '::: Loading symbols, using memory dump from "' + f + '" ...'
+names, types, addresses = init(f)
+print '::: Ready.'
