@@ -111,6 +111,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 }
 
 // from crashtool x86_64
+// ! all defines with fixed addresses only valid vor x86_64
 #define MEGABYTES(x)  ((x) * (1048576))
 #define ULONG(ADDR)     *((ulong *)((char *)(ADDR)))
 
@@ -137,6 +138,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 #define PTRS_PER_PMD    512
 #define PTRS_PER_PTE    512
 
+// extract offsets from virtual addresses
 #define pml4_index(address) (((address) >> PML4_SHIFT) & (PTRS_PER_PML4-1))
 #define pgd_index(address)  (((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD-1))
 #define pmd_index(address)  (((address) >> PMD_SHIFT) & (PTRS_PER_PMD-1))
@@ -158,37 +160,41 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 
 #define PAGEOFFSET(X)	((X) & KERNEL_PAGE_OFFSET_FOR_MASK)
 
+// flags
 #define _PAGE_PRESENT   0x001
 #define _PAGE_PSE       0x080   /* 2MB page */
 
 #define GETPAGE(x) (((x) & ~0x8000000000000fff) + 0xffff880000000000)
 
 unsigned long phys_base = 0;
+/* this is the base address for the pml4 page directory
+ * it should be the right address on x86_64 otherwise 
+ * it can be set using:
+ * 
+ * pgt = kernel_name('__ksymtab_init_level4_pgt')
+ * memory.set_init_level4_pgt(int(pgt.value.get_value()))
+ *
+ * in your python code
+ */
 unsigned long init_level4_pgt = 0xffffffff80201000;
 
 // #define VERBOSEDEBUG 1
 
 /* errflag will be set to 1 on error will be set to 2 if page is not 
  * present
+ * for an overview see:
+ * http://linux-mm.org/PageTableStructure
  */
 unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	int myerrflag = 0;
 	unsigned long pml4;
 	unsigned long pgd_paddr;
 	unsigned long pgd;
-	unsigned long mpgd;
-	unsigned long pgd_pte;
 	unsigned long pmd_paddr;
 	unsigned long pmd;
-	unsigned long mpmd;
-	unsigned long pmd_pte;
 
 	unsigned long pte_paddr;
-	unsigned long ptep;
-	unsigned long mpte;
 	unsigned long pte;
-
-	// printf("page lookup for: %p -> ", (void*)vaddr);
 
 	if(init_level4_pgt == 0) {
 		printf("init_level4_pgt not set\n");
@@ -196,10 +202,11 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 		return 0;
 	}
 
-	//pml4 = (init_level4_pgt) + pml4_index(vaddr);
 	myerrflag = 0;
 
-
+	/* first translate the virtual address of the base page
+	 * directory to a physical address
+	 */
 	unsigned long init_level4_pgt_tr = 0;
 	if (init_level4_pgt >= __START_KERNEL_map) {
 		init_level4_pgt_tr = ((init_level4_pgt) - (unsigned long)__START_KERNEL_map + phys_base);
@@ -208,14 +215,11 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	} else {
 		init_level4_pgt_tr = init_level4_pgt;
 	}
-	// init_level4_pgt_tr = (init_level4_pgt & ~0x8000000000000fff) + 0xffff880000000000;
 	init_level4_pgt_tr = (init_level4_pgt_tr) & PHYSICAL_PAGE_MASK;
 	
-
-	// printf("init_level4_pgt_tr: %p\n", (void*)init_level4_pgt_tr);
-
-	// printf("pml4_index: %lu, pml4_addr_ind: %p\n", pml4_index(vaddr), (void*)init_level4_pgt_tr + sizeof(unsigned long) * pml4_index(vaddr));
-
+	/* lookup address for the pgd page directory
+	 * the size of one page table entry is sizeof(unsigned long)
+	 */
 	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt_tr + PAGEOFFSET(sizeof(unsigned long) * pml4_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
@@ -238,25 +242,13 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
 	printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
 #endif
-
-//	mpgd = *(unsigned long*)memory_access_raw(pgd_paddr, nmap, &myerrflag);
-	// mpgd = pgd_paddr;
-	// pgd = ((unsigned long*)pgd_paddr) + pgd_index(vaddr);
+	/* lookup address for the pgd page directory */	
 	pgd = *(unsigned long*)memory_access_raw(pgd_paddr + PAGEOFFSET(sizeof(unsigned long) * pgd_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pgd table address read failed");
 		return 0;
 	}
-
-/*	printf("mpgd: %p, pgd: %p, acc: %p\n", (void*)mpgd, (void*)pgd, (void*)((mpgd + (((unsigned long)(pgd)) & (PAGE_SIZE - 1)))));
-	pgd_pte = *(unsigned long*)memory_access_raw((mpgd + (pgd & (PAGE_SIZE - 1))), nmap, &myerrflag);
-	if(!(pgd_pte & _PAGE_PRESENT)) {
-		*errflag = 2;
-		printf("page not present in pgd\n");
-		return 0;
-	} */
-
 
 	if(!(pgd & _PAGE_PRESENT)) {
 		*errflag = 2;
@@ -271,40 +263,24 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	printf("fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
 #endif
 
-	// mpmd = *(unsigned long*)memory_access_raw(pmd_paddr, nmap, &myerrflag);
-	
-	// printf("mpmd: %p\n", (void*)mpmd);
 #ifdef VERBOSEDEBUG
 	printf("pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
 #endif
+	/* lookup address for the pmd page directory */
 	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + PAGEOFFSET(sizeof(unsigned long) * pmd_index(vaddr)), nmap, &myerrflag);
-	// pmd = ((unsigned long*)pmd_paddr) + pmd_index(vaddr);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pmd table address read failed");
 		return 0;
 	}
-	/* pmd_pte = *(unsigned long*)memory_access_raw(mpmd + (((unsigned long)(pmd)) & KERNEL_PAGE_OFFSET), nmap, &myerrflag);
-//	pmd_pte = ULONG(mpmd + (((unsigned long)(pmd)) & KERNEL_PAGE_OFFSET));
-	if(!(pmd_pte & _PAGE_PRESENT)) {
-		*errflag = 2;
-		printf("page not present in pgd\n");
-		return 0;
-	}
-	*/
 	if(!(pmd & _PAGE_PRESENT)) {
 		*errflag = 2;
 		printf("page not present in pgd\n");
 		return 0;
 	}
 
-	// printf("pmd: %p\n", (void*)pmd);
 	if(pmd & _PAGE_PSE) {
-		// printf("2mb page\n");
 		/* 2MB Page */
-		// unsigned long physpage = (PAGEBASE(pmd) & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
-		// unsigned long physaddr = pmd & PHYSICAL_PAGE_MASK;
-		//unsigned long physaddr = pmd;
 		unsigned long physaddr = (pmd & PHYSICAL_PAGE_MASK) + (vaddr & ~_2MB_PAGE_MASK);
 		return physaddr;
 	}
@@ -315,45 +291,37 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
 	printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
 #endif
-
-//	mpte = *(unsigned long*)memory_access_raw(pte_paddr, nmap, &myerrflag);
-	ptep = *(unsigned long*)memory_access_raw(pte_paddr + PAGEOFFSET(sizeof(unsigned long) * pte_index(vaddr)), nmap, &myerrflag);
-	//ptep = ((unsigned long*)pte_paddr) + pte_index(vaddr);
+	
+	/* lookup the final page table entry */
+	pte = *(unsigned long*)memory_access_raw(pte_paddr + PAGEOFFSET(sizeof(unsigned long) * pte_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
 		printf("pmd table address read failed");
 		return 0;
 	}
-/*	pte = ULONG(mpte + (((unsigned long)(ptep)) & KERNEL_PAGE_OFFSET));
 	if(!(pte & (_PAGE_PRESENT))) {
-		*errflag = 2;
-		printf("page not present in pte\n");
-		return 0;
-	} */
-	if(!(ptep & (_PAGE_PRESENT))) {
 		*errflag = 2;
 		printf("page not present in pte\n");
 		return 0;
 	}
 
-	// printf("value there: %p\n", (void*)ptep);
-
-	// unsigned long physpage = (PAGEBASE(ptep) & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET);
-
-	// unsigned long physaddr = physpage & PHYSICAL_PAGE_MASK;
 #ifdef VERBOSEDEBUG
 	printf("page_offset: %p\n", (void*) (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK));
 #endif
-//	unsigned long physaddr = ptep & PHYSICAL_PAGE_MASK;
-	unsigned long physaddr = (ptep & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK);
-//	unsigned long physaddr = ptep;
+	unsigned long physaddr = (pte & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK);
 
 	return physaddr;
 }
 
 unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, int* errflag) {
+	/* first check, if we have a kernel virtual address here
+	 * since userspace address mapping is not supported
+	 */
         if(IS_KVADDR(virtual)) {
 		unsigned long physaddr = 0;
+		/* if we can do the job with a simple linear translation 
+		 * subtract the adequate constant from the virtual address
+		 */
 		if(!((virtual >= VMALLOC_START && virtual <= VMALLOC_END) ||
 	   	     (virtual >= VMEMMAP_VADDR && virtual <= VMEMMAP_END) ||
 	             (virtual >= MODULES_VADDR && virtual <= MODULES_END))) { 
@@ -371,20 +339,16 @@ unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, in
 #endif
 			}
 		} else {
-			// use the address_lookup function
-//			unsigned long kvaddr = page_lookup(virtual, nmap, errflag);
+			// otherwise use the address_lookup function
 			physaddr = page_lookup(virtual, nmap, errflag);
 #ifdef VERBOSEDEBUG
 			printf("kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
 #endif
-//			physaddr = map_kernel_virtual_to_physical(kvaddr, nmap, errflag);
-//			printf("pagain: %p -> %p\n", (void*)kvaddr, (void*)physaddr);
 
 		}
 		return physaddr;
 	}
 	printf("not a kernel virtual address: %p\n", (void*)virtual);
-//	return page_lookup(virtual, nmap, errflag);
 	*errflag = 1;
 	return 0;
 }
@@ -491,7 +455,6 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     unsigned long address;
     void * addr;
     int nmap = 0;
-    //char buf[1024];
 
     if (!PyArg_ParseTuple(args, "bki", &type, &address, &nmap))
         return NULL;
@@ -503,12 +466,6 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
 	    return NULL;
     }
 
-/*  if(address == 537851920) {
-	    printf("bla: %i, type: %i\n", addr, type);
-            unsigned long t = *(unsigned long *)addr;
-	    printf("blu: %i\n", t);
-    } */
-    
     /* TODO do mapping and stuff */
     switch(type) {
     case 0:  return Py_BuildValue("B", *(unsigned char   *)addr);
@@ -538,7 +495,7 @@ static PyMethodDef memory_methods[] = {
 PyMODINIT_FUNC
 initmemory(void)
 {
-	//PyObject* mod = Py_InitModule3("memory", memory_methods, memory__doc__);
+	// PyObject* mod = Py_InitModule3("memory", memory_methods, memory__doc__);
 	Py_InitModule3("memory", memory_methods, memory__doc__);
-//	PyModule_AddObject(mod, "PageNotPresent", PyErr_NewException("memory.PageNotPresent", NULL, NULL));
+	// PyModule_AddObject(mod, "PageNotPresent", PyErr_NewException("memory.PageNotPresent", NULL, NULL));
 }
