@@ -99,7 +99,7 @@ def prepare_strings():
     for k,v in types.iteritems():
 	if isinstance(v, Pointer):
 	    b = v.get_base()
-	    if isinstance(b, BaseType) and (b.name == "char" or b.name == "unsigned char"):
+	    if isinstance(b, BasicType) and (b.name == "char" or b.name == "unsigned char"):
 		typ_list.append((String(v), v))
 
     for s,v in typ_list:
