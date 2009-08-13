@@ -26,12 +26,15 @@ for l, r in helpers:
 
 print >>incfile, '\n'
 
-endpat = re.compile("\\ ")
+print >>incfile, '// imported defines', '\n'
+
+endpat = re.compile('\\\\[ |\t]*$')
 
 for name, path in defines:
 	fullpath = kernel_base_path + "/" + path
 	print 'extracting ' + name + ' from ' + fullpath
 	fdesc = open(fullpath)
+	name = re.escape(name) 
 	namepat = re.compile('#define[ |\t]*' + name)
 	inside = 0
 	incomment = 0
