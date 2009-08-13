@@ -2,6 +2,8 @@
 import re
 import memory
 
+KERNEL_PAGE_OFFSET = memory.get_defines()[0]
+
 #at which depth level do we stop recursing:
 MAX_DEPTH=5
 
@@ -370,7 +372,8 @@ class BaseType(SizedType):
 	# check if we have a userspace address
 	# for 2.6.11 kernels this is 0xffff810000000000UL
 	# since 2.6.27 this is 0xffff880000000000UL
-	if loc < 0xffff880000000000:
+	# if loc < 0xffff880000000000:
+	if loc < KERNEL_PAGE_OFFSET:
 		# this is a userspace virtual address!
 		raise UserspaceVirtualAddressException("userspace paging not implemented!", loc, str(info))
 	try:

@@ -10,11 +10,13 @@ PyDoc_STRVAR(memory_map__doc__,    "filename, filesize, map_size, map_number -> 
 PyDoc_STRVAR(memory_set_init_level4_pgt__doc__,    "addr -> set the init_level4_pgt pagetable address");
 PyDoc_STRVAR(memory_access__doc__, "type,addr -> read the value at addr");
 PyDoc_STRVAR(memory_virt_to_phys__doc__, "virt -> maps kernel virtual address to physical address");
+PyDoc_STRVAR(memory_get_defines__doc__, "returns the neccessary kernel defines from the header files as a tuple (PAGE_OFFSET)");
 
 #define MAP_SIZE ((size_t) 1 << 31)
 #define PAGE_SIZE ((size_t) 1 << 12)
 #define PAGE_ALIGN(x) ((x) & ~0xfff)
 #define PAGE_OFFSET(x) ((x) & 0xfff)
+
 int map_fd = -1;
 int map_fd1 = -1;
 void * memory = NULL;
@@ -110,6 +112,17 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 	return addr;
 }
 
+/* #define CONFIG_X86_64
+#define __KERNEL__
+#define bool void
+#define __init  
+#define spinlock_t void
+
+#include <asm/page.h>
+#include <asm/pgtable.h> */
+
+#include "kernel_defines.h"
+
 // from crashtool x86_64
 // ! all defines with fixed addresses only valid vor x86_64
 #define MEGABYTES(x)  ((x) * (1048576))
@@ -121,10 +134,10 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 #define VMALLOC_START       0xffffc20000000000UL
 #define VMALLOC_END         0xffffe1ffffffffffUL
 #define USERSPACE_TOP       0x0000800000000000UL
-//#define KERNEL_PAGE_OFFSET  0xffff880000000000UL
+// #define KERNEL_PAGE_OFFSET  0xffff880000000000UL
 #define KERNEL_PAGE_OFFSET_2_6_11         0xffff810000000000UL
 #define KERNEL_PAGE_OFFSET_2_6_27         0xffff880000000000UL
-#define KERNEL_PAGE_OFFSET KERNEL_PAGE_OFFSET_2_6_27
+#define KERNEL_PAGE_OFFSET __PAGE_OFFSET
 
 #define MODULES_VADDR       0xffffffff88000000UL
 #define MODULES_END         0xfffffffffff00000UL
@@ -180,7 +193,7 @@ unsigned long phys_base = 0;
  *
  * in your python code
  */
-unsigned long init_level4_pgt = 0xffffffff80201000;
+unsigned long init_level4_pgt_start = 0xffffffff80201000;
 
 // #define VERBOSEDEBUG 1
 
@@ -200,7 +213,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	unsigned long pte_paddr;
 	unsigned long pte;
 
-	if(init_level4_pgt == 0) {
+	if(init_level4_pgt_start == 0) {
 		printf("init_level4_pgt not set\n");
 		*errflag = 1;
 		return 0;
@@ -212,12 +225,12 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	 * directory to a physical address
 	 */
 	unsigned long init_level4_pgt_tr = 0;
-	if (init_level4_pgt >= __START_KERNEL_map) {
-		init_level4_pgt_tr = ((init_level4_pgt) - (unsigned long)__START_KERNEL_map + phys_base);
+	if (init_level4_pgt_start >= __START_KERNEL_map) {
+		init_level4_pgt_tr = ((init_level4_pgt_start) - (unsigned long)__START_KERNEL_map + phys_base);
 	} else if (vaddr >= KERNEL_PAGE_OFFSET) {
-		init_level4_pgt_tr = ((init_level4_pgt) - KERNEL_PAGE_OFFSET);
+		init_level4_pgt_tr = ((init_level4_pgt_start) - KERNEL_PAGE_OFFSET);
 	} else {
-		init_level4_pgt_tr = init_level4_pgt;
+		init_level4_pgt_tr = init_level4_pgt_start;
 	}
 	init_level4_pgt_tr = (init_level4_pgt_tr) & PHYSICAL_PAGE_MASK;
 	
@@ -448,7 +461,7 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
 }
 
 static PyObject *py_memory_set_init_level4_pgt(PyObject *self, PyObject *args) {
-	if(!PyArg_ParseTuple(args, "k", &init_level4_pgt))
+	if(!PyArg_ParseTuple(args, "k", &init_level4_pgt_start))
 		return NULL;
 	return Py_BuildValue("");
 }
@@ -487,12 +500,16 @@ static PyObject * py_memory_access(PyObject *self, PyObject *args)
     return Py_BuildValue(""); //None
 }
 
+static PyObject * py_memory_get_defines(PyObject *self, PyObject *args) {
+	return Py_BuildValue("(k)", KERNEL_PAGE_OFFSET);
+}
 
 static PyMethodDef memory_methods[] = {
 	{"map",     py_memory_map,    METH_VARARGS, memory_map__doc__},
 	{"set_init_level4_pgt",     py_memory_set_init_level4_pgt,    METH_VARARGS, memory_set_init_level4_pgt__doc__},
 	{"access",  py_memory_access, METH_VARARGS, memory_access__doc__},
 	{"virt_to_phys", py_memory_virt_to_phys, METH_VARARGS, memory_virt_to_phys__doc__},
+	{"get_defines", py_memory_get_defines, METH_VARARGS, memory_get_defines__doc__},
 	{NULL, NULL}      /* sentinel */
 };
 
