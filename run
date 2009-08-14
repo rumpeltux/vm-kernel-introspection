@@ -1,11 +1,23 @@
 #!/usr/bin/python -i
 from tools import *
+from tasklist import *
 import sys
 
 f = '/dev/mem'
-if len(sys.argv) == 2:
+if len(sys.argv) > 1:
 	f = sys.argv[1]
+	sys.argv.pop(0)
+	sys.argv.pop(0)
 
 print '::: Loading symbols, using memory dump from "' + f + '" ...'
 names, types, addresses = init(f)
 print '::: Ready.'
+
+print "it = kernel_name('init_task')"
+it = kernel_name('init_task')
+
+if len(sys.argv) > 0:
+	for arg in sys.argv:
+		print arg
+		eval(arg)
+
