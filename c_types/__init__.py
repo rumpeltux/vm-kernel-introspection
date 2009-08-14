@@ -2,6 +2,8 @@
 import re
 import memory
 
+KERNEL_PAGE_OFFSET = memory.get_defines()[0]
+
 #at which depth level do we stop recursing:
 MAX_DEPTH=5
 
@@ -56,7 +58,6 @@ class Type:
 	return None
 
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	if (self, loc) in seen:
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
@@ -65,8 +66,6 @@ class Type:
 		pass
 
 	if self.base is not None:
-#		seen.add((self, loc))
-#		seen.add(self)
 		try:
 			if seen[self] != None:
 				seen[self].add(loc)
@@ -160,15 +159,6 @@ class Struct(SizedType):
 
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
         iseq = True
-#	if (self, loc) in seen:
-#	if self in seen:
-#		return True
-#	if self.name == "notifier_block":
-#		global iters
-#		iters+=1
-#		if iters == 15:
-#			print "15"
-#		print "iter: %i" % (iters)
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
@@ -192,8 +182,6 @@ class Struct(SizedType):
             if member_loc == 0 or member_loc1 == 0:
 		i += 1
                 continue
-#	    seen.add((self, loc))
-#	    seen.add(self)
 	    try:
 		    if seen[self] != None:
 			    seen[self].add(loc)
@@ -259,9 +247,6 @@ class Array(Type):
 	return ret
 
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	    if (self, loc) in seen:
-#	    if self in seen:
-#		    return True
 	    try:
 		    if seen[self] != None:
 			    if loc in seen[self]:
@@ -271,10 +256,10 @@ class Array(Type):
 
 	    iseq = True
 	    i = 0
+	    # this is a dirty hack to iterate over members in both
+	    # memory images at the same time
 	    for member, member_loc in self.__iter__(loc, depth):
 		    member1, member_loc1 = self.__getitem__(i, loc1, depth)
-#		    seen.add((self, loc))
-#		    seen.add(self)
 		    try: 
 			    if seen[self] != None:
 				    seen[self].add(loc)
@@ -383,35 +368,19 @@ class BasicType(SizedType):
 	may raise a MemoryAccessException
 	"""
 	if loc < 4096: raise NullPointerException(loc, repr(info))
-	
-	if loc < 0xffff880000000000:
+
+	# check if we have a userspace address
+	# for 2.6.11 kernels this is 0xffff810000000000UL
+	# since 2.6.27 this is 0xffff880000000000UL
+	# if loc < 0xffff880000000000:
+	if loc < KERNEL_PAGE_OFFSET:
 		# this is a userspace virtual address!
 		raise UserspaceVirtualAddressException("userspace paging not implemented!", loc, str(info))
 	try:
-		physloc = memory.virt_to_phys(loc, 0)
-		return memory.access(mem_type, physloc, 0)
-	except ValueError, e:
-		raise PageNotPresent("page not present")
-#        if loc >= 0xffffffff80000000: #__START_KERNEL_map
-# 	    loc -= 0xffffffff80000000
-# 	elif loc >= 0xffff880000000000: #__PAGE_OFFSET
-# 	    loc -= 0xffff880000000000
-# 	else:
-# 	    if loc == 0: raise NullPointerException(str(info))
-# 	    raise MemoryAccessException("trying to access page 0x%x outside kernel memory (%s)" % (loc, info))
-# 	return memory.access(mem_type, loc, 0)
-    
-    @staticmethod
-    def get_value1(loc, mem_type=6, info=None): #unsigned long int
-	if loc == 0: raise NullPointerException(str(info))
-	if loc < 0xffff880000000000:
-		# this is a userspace virtual address!
-		raise UserspaceVirtualAddressException("userspace paging not implemented!", loc, str(info))
-	try:
-		physloc = memory.virt_to_phys(loc, 0)
+		physloc = memory.virt_to_phys(loc, image)
 		return memory.access(mem_type, physloc, image)
 	except ValueError, e:
-		raise PageNotPresent("page not present", loc, repr(info))
+		raise PageNotPresent("page not present")
 	except RuntimeError, e:
 		raise MemoryAccessException(e.args + (loc, repr(info)))
 
@@ -423,9 +392,6 @@ class BasicType(SizedType):
 	  return e
 
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	if (self, loc) in seen:
-#	if self in seen:
-#		return True
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
@@ -457,17 +423,12 @@ class Variable(Type):
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	if (self, loc) in seen:
-#	if self in seen:
-#		return True
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
 				return True
 	except KeyError, e:
 		pass
-#	seen.add((self, loc))
-#	seen.add(self)
 	try:
 		if seen[self] != None:
 			seen[self].add(loc)
@@ -527,9 +488,6 @@ class Pointer(BasicType):
 	return None
 
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	if (self, loc) in seen:
-#	if self in seen:
-#		return True
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
@@ -546,8 +504,6 @@ class Pointer(BasicType):
 		return False
 
 	if self.base is not None and ptr != 0:
-#		seen.add((self, loc))
-#		seen.add(self)
 		try: 
 			if seen[self] != None:
 				seen[self].add(loc)
@@ -564,17 +520,12 @@ class Typedef(Type):
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth-1)
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-#	if (self, loc) in seen:
-#	if self in seen:
-#		return True
 	try:
 		if seen[self] != None:
 			if loc in seen[self]:
 				return True
 	except KeyError, e:
 		pass
-#	seen.add((self, loc))
-#	seen.add(self)
 	try:
 		if seen[self] != None:
 			seen[self].add(loc)
