@@ -1,17 +1,44 @@
 #/usr/bin/python
 
-import os, re, string
+import os, re, sys, string
 
-# specify the defines which are to be extracted (as tuple of pairs)
+#------------------------------------------------------------------------------
+def usage():
+	print "Usage:", sys.argv[0], "[-k|--kernel <path>]"
+#------------------------------------------------------------------------------
+
+
+# specify the defines which are to be extracted (as tuple of pairs of the
+# symbol to extract and a list of possible locations for the file)
 # the filepath is relative to the kernel_base_path
-defines = (('__PAGE_OFFSET', 'arch/x86/include/asm/page_64.h'),
-	   ('__AC(X,Y)', 'include/linux/const.h'),)
+defines = (
+	   ('__PAGE_OFFSET', ['arch/x86/include/asm/page_64.h', 'include/asm-x86/page_64.h']),
+	   ('__AC(X,Y)', ['include/linux/const.h']),)
 
 # specify some helperdefines, which glue the extracted code together
 helpers = (('_AC(X,Y)', '__AC(X,Y)'),)
 
+# Default values
 incpipe = os.popen('echo -n /usr/src/linux-headers-`uname -r`')
 kernel_base_path = incpipe.read()
+
+# Parse arguments
+while len(sys.argv) > 1:
+	arg = sys.argv.pop(1)
+	# See if we have been given a kernel path
+	if (arg == '-k') or (arg == '--kernel'):
+		if len(sys.argv) > 1:
+			kernel_base_path = sys.argv.pop(1)
+		else:
+			usage()
+			exit(1)
+
+# Make sure the path exists
+if os.path.exists(kernel_base_path):
+	print "Using kernel source in", kernel_base_path
+else:
+	print "Kernel source path", kernel_base_path, "is invalid, aborting."
+	exit(1)
 
 # write output to this include file
 incfile = open('kernel_defines.h', 'w')
@@ -30,8 +57,18 @@ print >>incfile, '// imported defines', '\n'
 
 endpat = re.compile('\\\\[ |\t]*$')
 
-for name, path in defines:
-	fullpath = kernel_base_path + "/" + path
+
+for name, path_list in defines:
+	# Check all given files for existence
+	for path in path_list:
+		fullpath = kernel_base_path + "/" + path
+		if os.access(fullpath, os.F_OK):
+			break
+	# Did we find an existing file?
+	if not os.access(fullpath, os.F_OK):
+		print "File to extract symbol", name, "does not exist in, aborting."
+		exit(2)
+
 	print 'extracting ' + name + ' from ' + fullpath
 	fdesc = open(fullpath)
 	name = re.escape(name) 
