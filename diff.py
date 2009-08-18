@@ -33,8 +33,8 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('_mpio_cache')
-#  print temp
+#  temp = kernel_name('cdrom_sysctl_header')
+#  print temp.memcmp()
 #  sys.exit(0) 
 
   symcounter = 0

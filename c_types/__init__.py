@@ -121,7 +121,9 @@ class Void(Type):
     def get_base(self):
 	return None
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	return None
+	"as a heuristic it could be possible to just compare an unsigned long value at the void* position, but we also can simply assume true, which can be wrong"
+	# TODO: fix this, cannot be always true
+	return True
     def value(self, loc, depth=MAX_DEPTH):
 	return None
     
@@ -166,6 +168,15 @@ class Struct(SizedType):
 	except KeyError, e:
 		pass
 	
+	# what we have here is a ugly hack:
+	#  we want to iterate over the members of the struct in both
+	#  memory images simultaneously, but the __iter__-yield thing 
+	#  does not work for tuples, so we have to have the counter i
+	#  and iterate over one struct, while accessing the members of 
+	#  the other struct via indexing with i. Additionally we have
+	#  to do the same things as done in the respective __iter__-yield
+	#  function of the appropriate type (which is only either struct
+	#  or linked list at the time).
 	i = 0
 	for real_member, member_loc in self.__iter__(loc):
             member, member_loc = real_member.resolve(member_loc, depth-1)
