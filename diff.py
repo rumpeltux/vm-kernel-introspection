@@ -64,13 +64,13 @@ if __name__=='__main__':
 		continue
 	symcounter += 1
   	try:
-		print k, ": ",
+#		print k, ": ",
 		p = Memory(*v) 
 		if not p.memcmp():
-			print "false" 
+			print k, ": false" 
 			diffcounter += 1
 		else:
-			print "true"
+#			print "true"
 			samecounter += 1
 	except MemoryAccessException, e:
 		print "MemoryAccessException: ", str(e)

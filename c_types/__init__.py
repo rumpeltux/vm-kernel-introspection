@@ -487,6 +487,43 @@ class Pointer(BasicType):
 	      return self.type_list[self.base].value(ptr, depth-1)
 	return None
 
+    def get_element_size(self):
+	"iterate on base-types and return the first one with size-information or None if no size seems to be known"
+	#TODO cache this information for better performance
+	base =  self.type_list[self.base]
+	while not hasattr(base, "size"):
+	    if base.base is None:
+		return None
+	    base = self.type_list[base.base]
+	  #try:
+	  	#base = self.type_list[base.base]
+	  #except KeyError:
+		#print "array with no size"
+		#raise RuntimeError
+	return base.size
+	
+    def __getitem__(self, idx, loc=None, depth=MAX_DEPTH):
+	"simulate array semantics for pointers, especially useful in case of char*"
+	if loc is None:
+	  return self.type_list[self.base]
+	size = self.get_element_size()
+	try:
+	  ptr = self.get_value(loc, info=self) # unsigned long
+	except MemoryAccessException, e:
+ 	  return e
+	
+  	if self.base is not None and ptr != 0:
+    	  return self.type_list[self.base], ptr + size * idx
+	return None
+	
+    def __len__(self):
+	"if pointers are used with array semantics we don't know anything about the size of the memory area pointed to"
+	return 0
+	
+    def __nonzero__(self):
+	"needs to be overriden, as the object might be nonzero (i.e. not None) even though __len__() returns 0"
+	return True
+
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
 	try:
 		if seen[self] != None:
