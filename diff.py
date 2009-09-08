@@ -33,7 +33,7 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('cdrom_sysctl_header')
+#  temp = kernel_name('ndisc_net_ops')
 #  print temp.memcmp()
 #  sys.exit(0) 
 
@@ -67,7 +67,7 @@ if __name__=='__main__':
 		print k, ": ",
 		p = Memory(*v) 
 		if not p.memcmp():
-			print k, ": false" 
+			print "false" 
 			diffcounter += 1
 		else:
 			print "true"
@@ -94,7 +94,7 @@ if __name__=='__main__':
 
   print "stats:"
   print "symbols: %i, stayed same: %i, differring: %i, not handleable yet: %i" % (symcounter, samecounter, diffcounter, pagedcounter + othercounter)
-  print "so we got a coverage of %f %% of the symbols" % ((samecounter + diffcounter) / symcounter)
+  print "so we got a coverage of %f %% of the symbols" % (((samecounter + diffcounter) / (1.0 * symcounter)) * 100.0)
 
 #  print nr_cpu_ids
 #  memory.map1("../ubuntu_memdump_after_terminal.dump", 20000)
