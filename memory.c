@@ -32,18 +32,18 @@ typedef unsigned long uint64;
 
 void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 	void* addr;
-//	printf("access: %p\n", (void*)address);
+//	fprintf(stderr, "access: %p\n", (void*)address);
 	if(nmap == 0) {
 		if(map_fd == -1 || memory == NULL || memory == (void *) -1) {
 			*errflag = 1;
-			printf("memory_access: no file yet open (map_fd: %i, memory: %p)\n", map_fd, memory);
+			fprintf(stderr, "memory_access: no file yet open (map_fd: %i, memory: %p)\n", map_fd, memory);
 			return NULL;
 		}
 
 		if(address > fsize) {
 			*errflag = 1;
-			printf("memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize, address);
-			printf("memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize, (void*)address);
+//			fprintf(stderr, "memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize, address);
+			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize, (void*)address);
 			return NULL;
 		}
 
@@ -55,7 +55,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			if(memory) {
 				if(munmap(memory, map_size) < 0) {
 					*errflag = 1;
-					printf("munmap failed\n");
+					fprintf(stderr, "munmap failed\n");
 					return NULL;
 				}
 				memory = NULL;
@@ -63,26 +63,26 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			memory = mmap(NULL, map_size, PROT_READ, MAP_SHARED, map_fd, map_base);
 			if(memory == NULL || memory == MAP_FAILED) {
 				*errflag = 1;
-				printf("%s\n", strerror(errno));
+				fprintf(stderr, "%s\n", strerror(errno));
 				return NULL;
 			}
 		}
 
 		addr = memory + address - map_base;
 		/* if(address == 537851920) {
-			printf("map_base: %i, memory: %i, map_size: %i, address: %i, addr: %i\n", map_base, memory, map_size, address, addr);
+			fprintf(stderr, "map_base: %i, memory: %i, map_size: %i, address: %i, addr: %i\n", map_base, memory, map_size, address, addr);
 		} */
 	} else {
 		if(map_fd1 == -1 || memory1 == NULL || memory1 == (void *) -1) {
 			*errflag = 1;
-			printf("memory_access: no file yet open (map_fd: %i, memory: %p)", map_fd1, memory1);
+			fprintf(stderr, "memory_access: no file yet open (map_fd: %i, memory: %p)", map_fd1, memory1);
 			return NULL;
 		}
 		
 		if(address > fsize1) {
 			*errflag = 1;
-			printf("memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize1, address);
-			printf("memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize1, (void*)address);
+			fprintf(stderr, "memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize1, address);
+			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize1, (void*)address);
 			return NULL;
 		}
 
@@ -94,7 +94,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			if(memory1) {
 				if(munmap(memory1, map_size1) < 0) {
 					*errflag = 1;
-					printf("munmap failed\n");
+					fprintf(stderr, "munmap failed\n");
 					return NULL;
 				}
 				memory1 = NULL;
@@ -102,7 +102,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 			memory1 = mmap(NULL, map_size1, PROT_READ, MAP_SHARED, map_fd1, map_base1);
 			if(memory1 == NULL || memory1 == MAP_FAILED) {
 				*errflag = 1;
-				printf("%s\n", strerror(errno));
+				fprintf(stderr, "%s\n", strerror(errno));
 				return NULL;
 			}
 		}
@@ -214,7 +214,7 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	unsigned long pte;
 
 	if(init_level4_pgt_start == 0) {
-		printf("init_level4_pgt not set\n");
+		fprintf(stderr, "init_level4_pgt not set\n");
 		*errflag = 1;
 		return 0;
 	}
@@ -240,14 +240,13 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	pml4 = *(unsigned long*)memory_access_raw(init_level4_pgt_tr + PAGEOFFSET(sizeof(unsigned long) * pml4_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
-		printf("pml4 table address read failed");
+		fprintf(stderr, "pml4 table address read failed");
 		return 0;
 	}
 
 	if(!pml4 & _PAGE_PRESENT) {
 		// nopage 
-		printf("page not present in pml4\n");
-		printf("pml4: %lu\n", pml4);
+		fprintf(stderr, "page not present in pml4\n");
 		*errflag = 2;
 		return 0;
 	}
@@ -256,20 +255,20 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	
 	myerrflag = 0;
 #ifdef VERBOSEDEBUG
-	printf("fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
-	printf("pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
+	fprintf(stderr, "fsize: %p pgd_paddr: %p\n", (void*)fsize, (void*)pgd_paddr);
+	fprintf(stderr, "pgd_index: %lu, pgd_paddr_ind: %p\n", pgd_index(vaddr), (void*)(pgd_paddr + sizeof(unsigned long) * pgd_index(vaddr)));
 #endif
 	/* lookup address for the pgd page directory */	
 	pgd = *(unsigned long*)memory_access_raw(pgd_paddr + PAGEOFFSET(sizeof(unsigned long) * pgd_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
-		printf("pgd table address read failed");
+		fprintf(stderr, "pgd table address read failed");
 		return 0;
 	}
 
 	if(!(pgd & _PAGE_PRESENT)) {
 		*errflag = 2;
-		printf("page not present in pgd\n");
+		fprintf(stderr, "page not present in pgd\n");
 		return 0;
 	}
 
@@ -277,22 +276,22 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	myerrflag = 0;
 
 #ifdef VERBOSEDEBUG
-	printf("fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
+	fprintf(stderr, "fsize: %p, pmd_paddr: %p\n", (void*)fsize, (void*)pmd_paddr);
 #endif
 
 #ifdef VERBOSEDEBUG
-	printf("pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
+	fprintf(stderr, "pmd_index: %lu, pmd_paddr_ind: %p\n", pmd_index(vaddr), (void*)(pmd_paddr + sizeof(unsigned long) * pmd_index(vaddr)));
 #endif
 	/* lookup address for the pmd page directory */
 	pmd = *(unsigned long*)memory_access_raw(pmd_paddr + PAGEOFFSET(sizeof(unsigned long) * pmd_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
-		printf("pmd table address read failed");
+		fprintf(stderr, "pmd table address read failed");
 		return 0;
 	}
 	if(!(pmd & _PAGE_PRESENT)) {
 		*errflag = 2;
-		printf("page not present in pgd\n");
+		fprintf(stderr, "page not present in pgd\n");
 		return 0;
 	}
 
@@ -305,25 +304,25 @@ unsigned long page_lookup(unsigned long vaddr, int nmap, int* errflag) {
 	pte_paddr = pmd & PHYSICAL_PAGE_MASK;
 
 #ifdef VERBOSEDEBUG
-	printf("fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
-	printf("pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
+	fprintf(stderr, "fsize: %p, pte_paddr: %p\n", (void*)fsize, (void*)pte_paddr);
+	fprintf(stderr, "pte_index: %lu, pte_paddr_ind: %p\n", pte_index(vaddr), (void*)(pte_paddr + sizeof(unsigned long) * pte_index(vaddr)));
 #endif
 	
 	/* lookup the final page table entry */
 	pte = *(unsigned long*)memory_access_raw(pte_paddr + PAGEOFFSET(sizeof(unsigned long) * pte_index(vaddr)), nmap, &myerrflag);
 	if(myerrflag != 0) {
 		*errflag = 1;
-		printf("pmd table address read failed");
+		fprintf(stderr, "pmd table address read failed");
 		return 0;
 	}
 	if(!(pte & (_PAGE_PRESENT))) {
 		*errflag = 2;
-		printf("page not present in pte\n");
+		fprintf(stderr, "page not present in pte\n");
 		return 0;
 	}
 
 #ifdef VERBOSEDEBUG
-	printf("page_offset: %p\n", (void*) (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK));
+	fprintf(stderr, "page_offset: %p\n", (void*) (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK));
 #endif
 	unsigned long physaddr = (pte & PHYSICAL_PAGE_MASK) + (((unsigned long)(vaddr)) & KERNEL_PAGE_OFFSET_FOR_MASK);
 
@@ -346,26 +345,26 @@ unsigned long map_kernel_virtual_to_physical(unsigned long virtual, int nmap, in
 				*errflag = 0;
 				physaddr = ((virtual) - (unsigned long)__START_KERNEL_map + phys_base);
 #ifdef VERBOSEDEBUG
-				printf("start_kern_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
+				fprintf(stderr, "start_kern_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
 #endif
 			} else /* if(virtual >= (unsigned long)KERNEL_PAGE_OFFSET) */ {
 				*errflag = 0;
 				physaddr = ((virtual) - KERNEL_PAGE_OFFSET);
 #ifdef VERBOSEDEBUG
-				printf("pg_offs_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
+				fprintf(stderr, "pg_offs_tr: %p -> %p\n", (void*)virtual, (void*)physaddr);
 #endif
 			}
 		} else {
 			// otherwise use the address_lookup function
 			physaddr = page_lookup(virtual, nmap, errflag);
 #ifdef VERBOSEDEBUG
-			printf("kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
+			fprintf(stderr, "kpage: %p -> %p\n", (void*)virtual, (void*)physaddr);
 #endif
 
 		}
 		return physaddr;
 	}
-	printf("not a kernel virtual address: %p\n", (void*)virtual);
+	fprintf(stderr, "not a kernel virtual address: %p\n", (void*)virtual);
 	*errflag = 1;
 	return 0;
 }
@@ -409,7 +408,7 @@ static PyObject * py_memory_map(PyObject *self, PyObject *args)
     }
 //     fseek(sfd, 0, SEEK_END);
 //     tempfsize = ftell(sfd);
-// //    printf("%s: %li\n", filename, tempfsize);
+// //    fprintf(stderr, "%s: %li\n", filename, tempfsize);
 //     fseek(sfd, 0, SEEK_SET);
 //     fclose(sfd);
 

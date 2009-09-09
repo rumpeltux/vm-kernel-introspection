@@ -212,8 +212,10 @@ class Struct(SizedType):
             return iseq
         except NullPointerException,  e:
             # we just print a warning here and ignore the exception
-            # TODO: think of something better here
-            print "ignored: NullPointerException",  str(e)
+            # TODO: overthink if we are doing the right thing here
+	    # 	    is is the right thing to just assume null pointer
+	    #       locations to be the same?
+            #print "ignored: NullPointerException",  str(e)
             pass
             
     def __getitem__(self, item, loc=None):
