@@ -13,7 +13,7 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('ndisc_net_ops')
+#  temp = kernel_name('quota_genl_family')
 #  print temp.memcmp()
 #  sys.exit(0) 
 
@@ -35,6 +35,7 @@ if __name__=='__main__':
 		else:
 			samecounter += 1
 	except MemoryAccessException, e:
+#		print k, ": ", e
 		errorcounter += 1
 	except RecursingTypeException, e:
 		errorcounter += 1

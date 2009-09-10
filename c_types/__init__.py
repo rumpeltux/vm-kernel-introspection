@@ -122,7 +122,7 @@ class Void(Type):
 	return None
     def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
 	"as a heuristic it could be possible to just compare an unsigned long value at the void* position, but we also can simply assume true, which can be wrong"
-	# TODO: fix this, cannot be always true
+	# TODO: fix this, cannot be always true, right?
 	return True
     def value(self, loc, depth=MAX_DEPTH):
 	return None
@@ -169,54 +169,72 @@ class Struct(SizedType):
             pass
 
         try:
-            # what we have here is a ugly hack:
-            #  we want to iterate over the members of the struct in both
-            #  memory images simultaneously, but the __iter__-yield thing 
-            #  does not work for tuples, so we have to have the counter i
-            #  and iterate over one struct, while accessing the members of 
-            #  the other struct via indexing with i. Additionally we have
-            #  to do the same things as done in the respective __iter__-yield
-            #  function of the appropriate type (which is only either struct
-            #  or linked list at the time).
-            i = 0
-            for real_member, member_loc in self.__iter__(loc):
-                member, member_loc = real_member.resolve(member_loc, depth-1)
-                if hasattr(self, "members"):
-                    ind = self.members[i]
-                    real_member1 = self.type_list[ind]
-                    member_loc1 = loc1 + self.type_list[ind].offset
-                elif hasattr(self, "entries"):
-                    name, offset = (self.entries.items())[i]
-                    real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
-                else:
-                    raise RuntimeError("not a struct and not a linked list")
-                member1, member_loc1 = real_member1.resolve(member_loc1, depth-1)
-                if member_loc == 0 or member_loc1 == 0:
-                    i += 1
-                    continue
-                try:
-                    if seen[self] != None:
-                        seen[self].add(loc)
-                except KeyError, e:
-                    seen[self] = set([loc])
-                    r = member.memcmp(member_loc, member_loc1, depth-1, seen)
-                    if r == None:
-                        # there has been a NullPointerException, so we assume the symbols in both
-                        # memory images to be the same
-                        iseq = True
-                    else:
-                        if not r:
-                            iseq = False
-                            break
-                i += 1
-            return iseq
-        except NullPointerException,  e:
-            # we just print a warning here and ignore the exception
-            # TODO: overthink if we are doing the right thing here
-	    # 	    is is the right thing to just assume null pointer
-	    #       locations to be the same?
-            #print "ignored: NullPointerException",  str(e)
-            pass
+		# what we have here is a ugly hack:
+		#  we want to iterate over the members of the struct in both
+		#  memory images simultaneously, but the __iter__-yield thing 
+		#  does not work for tuples, so we have to have the counter i
+		#  and iterate over one struct, while accessing the members of 
+		#  the other struct via indexing with i. Additionally we have
+		#  to do the same things as done in the respective __iter__-yield
+		#  function of the appropriate type (which is only either struct
+		#  or linked list at the time).
+		i = 0
+		for real_member, member_loc in self.__iter__(loc):
+			member, member_loc = real_member.resolve(member_loc, depth-1)
+			if hasattr(self, "members"):
+				ind = self.members[i]
+				real_member1 = self.type_list[ind]
+				member_loc1 = loc1 + self.type_list[ind].offset
+			elif hasattr(self, "entries"):
+				name, offset = (self.entries.items())[i]
+				real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
+			else:
+				raise RuntimeError("not a struct and not a linked list")
+			member1, member_loc1 = real_member1.resolve(member_loc1, depth-1)
+			if member_loc == 0 or member_loc1 == 0:
+				i += 1
+				continue
+			try:
+				if seen[self] != None:
+					seen[self].add(loc)
+			except KeyError, e:
+				seen[self] = set([loc])
+			try:
+				r = member.memcmp(member_loc, member_loc1, depth-1, seen)
+			except EndOfListPassException, e:
+				iseq = iseq and e[1]
+				continue
+			# in case of NULL pointers or Userspace Addresses we 
+			# assume the two images to be the same, since NULL Pointers 
+			# should be the same and in case of userspace addresses, we
+			# cannot check
+			except NullPointerException, e:
+				continue
+			except UserspaceVirtualAddressException, e:
+				continue
+			if r == None:
+				# there has been a EndOfListException, so we assume the symbols in both
+				# memory images to be the same
+                		# additionally we have to pass the EndOfListException up
+				iseq = True
+				break
+			else:
+				if not r:
+					iseq = False
+					break
+			i += 1
+		return iseq
+        except EndOfListException,  e:
+#            print "got end of list", str(e)
+	    raise EndOfListPassException("passed up", iseq)
+#        except NullPointerException, e:
+#	    # we just print a warning here and ignore the exception
+#            # TODO: overthink if we are doing the right thing here
+#	    # 	    is is the right thing to just assume null pointer
+#	    #       locations to be the same, if they are not a EndOfList?
+#            print "ignored: NullPointerException",  str(e)
+#            print "item: ",  self.get_name()
+#	    pass
             
     def __getitem__(self, item, loc=None):
         """
@@ -363,6 +381,12 @@ class UserspaceVirtualAddressException(MemoryAccessException):
   pass
 class PageNotPresent(MemoryAccessException):
   pass
+class ListAccessException(RuntimeError):
+  pass
+class EndOfListException(ListAccessException):
+  pass
+class EndOfListPassException(ListAccessException):
+  pass
 
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
 
@@ -433,7 +457,7 @@ class Enum(SizedType):
     enums = {}
     def append(self, enum):
         self.enums[enum.name] = enum.const
-    #TODO...
+    #TODO: ...
 class Enumerator(Type):
     def __init__(self, info, type_list):
         Type.__init__(self, info, type_list)

@@ -86,9 +86,13 @@ class KernelLinkedList(Struct):
             return self.type_list[self._parent], loc - self.offset
 	return self.type_list[self._parent]
     def get_pointer_value(self, loc, offset):
-	if loc == 0: raise NullPointerException(repr(self))
+	if loc == 0:  raise NullPointerException(repr(self))
 	ptr = resolve_pointer(loc + offset)
-	if ptr == 0: raise NullPointerException(repr(self))
+	# if we have a NULL pointer here then it is very likely
+	# that we are at the beginning or end of a hlist_struct-like-list
+	# or that there is no such list item, therefore throw a special 
+	# EndOfListException
+	if ptr == 0: raise EndOfListException(repr(self))
 	#print >>sys.stderr, "%x, %x" % (ptr, loc)
 	return ptr
    

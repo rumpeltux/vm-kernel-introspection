@@ -120,7 +120,13 @@ Members are conveniently accessable:
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)
     def memcmp(self):
 	"compares the symbol in the two mapped memory images, returns true if the symbol didn't change"
-        return self.__type.memcmp(self.__loc, self.__loc, 0, {})
+	# TODO: maybe think of something more intelligent here
+	# the EndOfListPassException means, that we hit the end of a list
+	# and can read out the compare status from the exception
+	try:
+        	return self.__type.memcmp(self.__loc, self.__loc, 0, {})
+	except EndOfListPassException, e:
+		return e[1]
     def to_xml(self, depth=MAX_DEPTH):
 	return to_xml(self.__value(depth)).toprettyxml(indent="  ")
 	
