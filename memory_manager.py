@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from c_types.extensions import string
 from c_types import *
+from c_types.user_types import *
+
 class Memory:
     """Memory Manager
 
@@ -51,16 +53,35 @@ Members are conveniently accessable:
 #        if(typename != 'float' and typename != 'double'):
 #            raise TypeError("%s is not of type float it is of type %s" % (repr(self), type(retobj)))
 #        return retobj
+    def next_with_offset(self, next_offset=None):
+        "hacky implementation for the KernelLinkedLists, to access the next member with an optional offset"
+	if next_offset == None:
+		self.__getitem__("next")
+	else:
+		this, loc = self.__type.resolve(self.__loc)
+		if not isinstance(this, KernelLinkedList): return None
+		member_tuple = this.__getitem__("next", loc, next_offset)
+		if member_tuple is None:  raise KeyError("%s has no attribute %s" % (repr(this), "next"))
+		member, location = member_tuple
+		return Memory(location, member)
     def __getattr__(self, key):
-        this, loc = self.__type.resolve(self.__loc)
-        # print key, repr(this), loc, hex(loc)
-	
-        if not isinstance(this, Struct): return None
+# unfortunately we cannot do it like this. if we would use the commented 
+# out construct then we would be forced to use something.next() even if 
+# we don't want to use an offset.
+# therefore for keeping the convenient access in all the other cases the
+# next_with_offset function has to be used for accessing children.next with
+# an offset.
+#	if key == "next":
+#	 	return self.next_with_offset
+	this, loc = self.__type.resolve(self.__loc)
+	# print key, repr(this), loc, hex(loc)
+
+	if not isinstance(this, Struct): return None
 	member_tuple = this.__getitem__(key, loc)
 	if member_tuple is None: raise KeyError("%s has no attribute %s" % (repr(this), key))
 
 	member, location = member_tuple
-        return Memory(location, member)
+	return Memory(location, member)
         
     def __getitem__(self, idx):
 	this, loc = self.__type.resolve(self.__loc)

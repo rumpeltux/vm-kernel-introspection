@@ -69,7 +69,6 @@ def pstree():
 	it = kernel_name('init_task')
 	print_task_tree(it.tasks.next)
 
-
 #------------------------------------------------------------------------------
 def print_task_tree(task, indent = 0):
 	"""
@@ -84,19 +83,33 @@ def print_task_tree(task, indent = 0):
 
 	# Print out children
 	try:
-		head = child = task.children.next
+		# strange behaviour here:
+		#  if there are children and we want to get them
+		#   we have to access with offset -16 since it actually
+		#   points to the sibling inside the children
+		#  if there are no children it points to the children
+		#   of itself, without any offset, just like expected
+		#   normally
+		if task.children.next.get_loc() == task.get_loc():
+			return
+		head = child = task.children.next_with_offset(-16)
 		first = True
 		while (first) or (child.get_loc() != head.get_loc()):
 			print "|   "*(indent+2)
 			print_task_tree(child, indent + 1)
 			child = child.sibling.next
+			# again strange bahaviour:
+			# if there is a next sibling, which is not the first one
+			#  then everything works like expected
+			# if the current processed was the last child, then the
+			#  sibling.next doesn't point back to the first, instead the
+			#  sibling.next.sibling.next points at the first. In this case
+			#  the sibling.next seems nothing useful
+			if child.sibling.next.get_loc() == head.get_loc():
+				break
 			first = False
 	except NullPointerException:
 		# Just ignore null-pointer exceptions
 		print "|   "*indent + '`- Caught NullPointerException'
 		return
 		#pass
-
-names, types, addresses = init('../ubuntu_memdump_before_terminal.dump')
-
-ps()

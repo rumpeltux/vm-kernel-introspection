@@ -83,7 +83,7 @@ class KernelLinkedList(Struct):
 	if loc == 0: #NullPointerException
 	  return Pointer(self.type_list[self._parent]), 0
 	if not loc is None:
-	  return self.type_list[self._parent], loc - self.offset
+            return self.type_list[self._parent], loc - self.offset
 	return self.type_list[self._parent]
     def get_pointer_value(self, loc, offset):
 	if loc == 0: raise NullPointerException(repr(self))
@@ -91,10 +91,13 @@ class KernelLinkedList(Struct):
 	if ptr == 0: raise NullPointerException(repr(self))
 	#print >>sys.stderr, "%x, %x" % (ptr, loc)
 	return ptr
-	
-    def __getitem__(self, item, loc=None):
-	if loc is None: return self.parent()
-	return self.parent(self.get_pointer_value(loc, self.entries[item]))
+   
+    def __getitem__(self, item, loc=None,  next_offset=None):
+        if loc is None: return self.parent()
+        if next_offset == None:
+            next_offset = 0
+        return self.parent(self.get_pointer_value(loc, self.entries[item]) + next_offset)
+    
     def __iter__(self, loc=None):
 	for name,offset in self.entries.iteritems():
 	  if loc is None:
