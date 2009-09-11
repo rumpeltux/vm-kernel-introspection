@@ -78,7 +78,12 @@ def print_task_tree(task, indent = 0):
 	if (indent > 10): return
 	
 	# Print out current task
-	print "%s|-- %s (0x%0.16x)" % ("|   "*indent, str(task.pid), task.get_loc())
+	print "%s|-- %-30s %s 0x%0.16x" % (
+		"|   "*indent, 
+		task_cmd(task) + " (" + str(task.pid) + ") ",
+		"    "*(8-indent),
+		task.get_loc()
+	)
 	#print " "*indent, task.pid.resolve(), task.get_loc()
 
 	# Print out children
@@ -95,7 +100,7 @@ def print_task_tree(task, indent = 0):
 		head = child = task.children.next_with_offset(-16)
 		first = True
 		while (first) or (child.get_loc() != head.get_loc()):
-			print "|   "*(indent+2)
+			#print "|   "*(indent+2)
 			print_task_tree(child, indent + 1)
 			child = child.sibling.next
 			# again strange bahaviour:
