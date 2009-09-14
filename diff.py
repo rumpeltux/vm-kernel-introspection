@@ -13,7 +13,7 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('quota_genl_family')
+#  temp = kernel_name('_mpio_cache')
 #  print temp.memcmp()
 #  sys.exit(0) 
 
@@ -28,23 +28,26 @@ if __name__=='__main__':
 		continue
 	symcounter += 1
   	try:
+#		print k, ": ",
 		p = Memory(*v) 
 		if not p.memcmp():
+#			print "false",
 			print k
 			diffcounter += 1
 		else:
+#			print "true"
 			samecounter += 1
 	except MemoryAccessException, e:
 #		print k, ": ", e
 		errorcounter += 1
-	except RecursingTypeException, e:
-		errorcounter += 1
-	except RuntimeError, e:
-		errorcounter += 1
-	except UserspaceVirtualAddressException, e:
-		errorcounter += 1
-	except PageNotPresent, e:
-		errorcounter += 1
+#	except RecursingTypeException, e:
+#		errorcounter += 1
+#	except RuntimeError, e:
+#		errorcounter += 1
+#	except UserspaceVirtualAddressException, e:
+#		errorcounter += 1
+#	except PageNotPresent, e:
+#		errorcounter += 1
   print "stats:"
   print "total symbols: %i, stayed same: %i, differring: %i, errors: %i" % (symcounter, samecounter, diffcounter, errorcounter)
   print "%f %% symbols changed or had errors" % (100.0 - (((samecounter + diffcounter) / (1.0 * symcounter)) * 100.0))

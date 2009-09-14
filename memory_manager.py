@@ -98,7 +98,7 @@ Members are conveniently accessable:
 	    for member, location in this.__iter__(loc):
 		yield Memory(location, member)
 	elif isinstance(this, Array):
-	    type = this.type_list[this.type.base]
+	    type = this.type_list[this.base]
 	    size_type = type
 	    while not hasattr(size_type, "size"):
 		size_type = this.type_list[size_type.base]

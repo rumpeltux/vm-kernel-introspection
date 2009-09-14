@@ -85,22 +85,23 @@ class KernelLinkedList(Struct):
 	if not loc is None:
             return self.type_list[self._parent], loc - self.offset
 	return self.type_list[self._parent]
-    def get_pointer_value(self, loc, offset):
+    def get_pointer_value(self, loc, offset, image=0):
 	if loc == 0:  raise NullPointerException(repr(self))
-	ptr = resolve_pointer(loc + offset)
+	ptr = resolve_pointer(loc + offset, image)
 	# if we have a NULL pointer here then it is very likely
 	# that we are at the beginning or end of a hlist_struct-like-list
 	# or that there is no such list item, therefore throw a special 
 	# EndOfListException
 	if ptr == 0: raise EndOfListException(repr(self))
+	#if ptr == 0: raise NullPointerException(repr(self))
 	#print >>sys.stderr, "%x, %x" % (ptr, loc)
 	return ptr
    
-    def __getitem__(self, item, loc=None,  next_offset=None):
+    def __getitem__(self, item, loc=None,  next_offset=None, image=0):
         if loc is None: return self.parent()
         if next_offset == None:
             next_offset = 0
-        return self.parent(self.get_pointer_value(loc, self.entries[item]) + next_offset)
+        return self.parent(self.get_pointer_value(loc, self.entries[item], image) + next_offset)
     
     def __iter__(self, loc=None):
 	for name,offset in self.entries.iteritems():
@@ -108,6 +109,35 @@ class KernelLinkedList(Struct):
 	    yield self.parent()
 	  else:
 	    yield self.parent(self.get_pointer_value(loc,offset))
+
+    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
+	    iseq = True
+	    next_offset = 0
+	    if self.name == "children":
+		next_offset = -16
+	    try:
+		    if seen[self] != None:
+			    if loc in seen[self]:
+				    return True
+			    else:
+				    seen[self].add(loc)
+	    except KeyError, e:
+		    seen[self] = set([loc])
+	    try:	
+		    if loc is None:
+			    next_tuple = self.parent()
+		    else:
+			    next_tuple = self.parent(self.get_pointer_value(loc, self.entries["next"], 0) + next_offset)
+		    if loc1 is None:
+			    next1_tuple = self.parent()
+		    else:
+			    next1_tuple = self.parent(self.get_pointer_value(loc1, self.entries["next"], 1) + next_offset)
+            except EndOfListException, e:
+		    return iseq
+	    r = next_tuple[0].memcmp(next_tuple[1], next1_tuple[1], depth-1, seen)
+	    iseq = iseq and r
+	    return iseq
+
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))
 			  for name in self.entries])

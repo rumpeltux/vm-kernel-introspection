@@ -167,66 +167,69 @@ class Struct(SizedType):
                     return True
         except KeyError, e:
             pass
-
-        try:
-		# what we have here is a ugly hack:
-		#  we want to iterate over the members of the struct in both
-		#  memory images simultaneously, but the __iter__-yield thing 
-		#  does not work for tuples, so we have to have the counter i
-		#  and iterate over one struct, while accessing the members of 
-		#  the other struct via indexing with i. Additionally we have
-		#  to do the same things as done in the respective __iter__-yield
-		#  function of the appropriate type (which is only either struct
-		#  or linked list at the time).
-		i = 0
-		for real_member, member_loc in self.__iter__(loc):
-			member, member_loc = real_member.resolve(member_loc, depth-1)
-			if hasattr(self, "members"):
-				ind = self.members[i]
-				real_member1 = self.type_list[ind]
-				member_loc1 = loc1 + self.type_list[ind].offset
-			elif hasattr(self, "entries"):
-				name, offset = (self.entries.items())[i]
-				real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
-			else:
-				raise RuntimeError("not a struct and not a linked list")
-			member1, member_loc1 = real_member1.resolve(member_loc1, depth-1)
-			if member_loc == 0 or member_loc1 == 0:
-				i += 1
-				continue
-			try:
-				if seen[self] != None:
-					seen[self].add(loc)
-			except KeyError, e:
-				seen[self] = set([loc])
-			try:
-				r = member.memcmp(member_loc, member_loc1, depth-1, seen)
-			except EndOfListPassException, e:
-				iseq = iseq and e[1]
-				continue
-			# in case of NULL pointers or Userspace Addresses we 
-			# assume the two images to be the same, since NULL Pointers 
-			# should be the same and in case of userspace addresses, we
-			# cannot check
-			except NullPointerException, e:
-				continue
-			except UserspaceVirtualAddressException, e:
-				continue
-			if r == None:
-				# there has been a EndOfListException, so we assume the symbols in both
-				# memory images to be the same
-                		# additionally we have to pass the EndOfListException up
-				iseq = True
-				break
-			else:
-				if not r:
-					iseq = False
-					break
+	
+#	try:
+	# what we have here is a ugly hack:
+	#  we want to iterate over the members of the struct in both
+	#  memory images simultaneously, but the __iter__-yield thing 
+	#  does not work for tuples, so we have to have the counter i
+	#  and iterate over one struct, while accessing the members of 
+	#  the other struct via indexing with i. Additionally we have
+	#  to do the same things as done in the respective __iter__-yield
+	#  function of the appropriate type (which is only either struct
+	#  or linked list at the time).
+	i = 0
+	for real_member, member_loc in self.__iter__(loc):
+		member, member_loc = real_member.resolve(member_loc, depth-1)
+		if hasattr(self, "members"):
+			ind = self.members[i]
+			real_member1 = self.type_list[ind]
+			member_loc1 = loc1 + self.type_list[ind].offset
+		elif hasattr(self, "entries"):
+			name, offset = (self.entries.items())[i]
+			real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
+		else:
+			raise RuntimeError("not a struct and not a linked list")
+		member1, member_loc1 = real_member1.resolve(member_loc1, depth-1)
+		if member_loc == 0 or member_loc1 == 0:
 			i += 1
-		return iseq
-        except EndOfListException,  e:
+			continue
+		try:
+			if seen[self] != None:
+				seen[self].add(loc)
+		except KeyError, e:
+			seen[self] = set([loc])
+		try:
+			r = member.memcmp(member_loc, member_loc1, depth-1, seen)
+		#except EndOfListPassException, e:
+		#	iseq = iseq and e[1]
+		#	continue
+
+		# in case of NULL pointers or Userspace Addresses we 
+		# assume the two images to be the same, since NULL Pointers 
+		# should be the same and in case of userspace addresses, we
+		# cannot check
+		except NullPointerException, e:
+			i += 1
+			continue
+		except UserspaceVirtualAddressException, e:
+			i += 1
+			continue
+#		if r == None:
+#			# there has been a EndOfListException, so we assume the symbols in both
+#			# memory images to be the same
+#			# additionally we have to pass the EndOfListException up
+#			iseq = True
+#			break
+#		else:
+		if not r:
+			iseq = False
+			break
+		i += 1
+	return iseq
+#	except EndOfListException,  e:
 #            print "got end of list", str(e)
-	    raise EndOfListPassException("passed up", iseq)
+#	    raise EndOfListPassException("passed up", iseq)
 #        except NullPointerException, e:
 #	    # we just print a warning here and ignore the exception
 #            # TODO: overthink if we are doing the right thing here
@@ -618,7 +621,7 @@ class Typedef(Type):
 		seen[self] = set([loc])
 	return self.type_list[self.base].memcmp(loc, loc1, depth-1, seen)
 
-resolve_pointer   = lambda loc: BasicType.get_value(loc)
+resolve_pointer   = lambda loc, img=0: BasicType.get_value(loc, image=img)
 
 class UnwantedType(Type):
     pass
