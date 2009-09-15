@@ -2,6 +2,7 @@
 from c_types.extensions import string
 from c_types import *
 from c_types.user_types import *
+from comparator import *
 
 class Memory:
     """Memory Manager
@@ -119,14 +120,12 @@ Members are conveniently accessable:
     def __repr__(self):
 	return "<Memory %s @0x%x>" % (repr(self.__type), self.__loc)
     def memcmp(self):
-	"compares the symbol in the two mapped memory images, returns true if the symbol didn't change"
-	# TODO: maybe think of something more intelligent here
-	# the EndOfListPassException means, that we hit the end of a list
-	# and can read out the compare status from the exception
-	try:
-        	return self.__type.memcmp(self.__loc, self.__loc, 0, {})
-	except EndOfListPassException, e:
-		return e[1]
+	"""
+	Uses the Comparator class to compare the two memory images.
+	"""
+	comparator = Comparator()
+	self.__type.memcmp(self.__loc, self.__loc, comparator, self.__type.name)
+	comparator.run()
     def to_xml(self, depth=MAX_DEPTH):
 	return to_xml(self.__value(depth)).toprettyxml(indent="  ")
 	

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 import memory
+import sys
 
 KERNEL_PAGE_OFFSET = memory.get_defines()[0]
 
@@ -57,22 +58,9 @@ class Type:
 	    return self.type_list[self.base].value(loc, depth-1)
 	return None
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	try:
-		if seen[self] != None:
-			if loc in seen[self]:
-				return True
-	except KeyError, e:
-		pass
-
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	if self.base is not None:
-		try:
-			if seen[self] != None:
-				seen[self].add(loc)
-		except KeyError, e:
-			seen[self] = set([loc])
-		return self.type_list[self.base].memcmp(loc, loc1, depth-1, seen)
-	return True
+		comparator.enqueue(sympath + "." + self.type_list[self.base].name, self.type_list[self.base], loc, loc1)
 
     def register(self):
 	"if this type is manually added, make it is also registered with a valid id in the global type register"
@@ -120,10 +108,11 @@ class Void(Type):
 	self.name = "void"
     def get_base(self):
 	return None
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	"as a heuristic it could be possible to just compare an unsigned long value at the void* position, but we also can simply assume true, which can be wrong"
 	# TODO: fix this, cannot be always true, right?
 	return True
+
     def value(self, loc, depth=MAX_DEPTH):
 	return None
     
@@ -159,16 +148,7 @@ class Struct(SizedType):
 	    #out[name_str] = value
         return out
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-        iseq = True
-        try:
-            if seen[self] != None:
-                if loc in seen[self]:
-                    return True
-        except KeyError, e:
-            pass
-	
-#	try:
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	# what we have here is a ugly hack:
 	#  we want to iterate over the members of the struct in both
 	#  memory images simultaneously, but the __iter__-yield thing 
@@ -180,7 +160,8 @@ class Struct(SizedType):
 	#  or linked list at the time).
 	i = 0
 	for real_member, member_loc in self.__iter__(loc):
-		member, member_loc = real_member.resolve(member_loc, depth-1)
+		member, member_loc = real_member.resolve(member_loc, MAX_DEPTH-1)
+		# TODO: fix this and use isinstance(self, Struct) ... instead?
 		if hasattr(self, "members"):
 			ind = self.members[i]
 			real_member1 = self.type_list[ind]
@@ -190,54 +171,13 @@ class Struct(SizedType):
 			real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
 		else:
 			raise RuntimeError("not a struct and not a linked list")
-		member1, member_loc1 = real_member1.resolve(member_loc1, depth-1)
+		member1, member_loc1 = real_member1.resolve(member_loc1, MAX_DEPTH-1)
 		if member_loc == 0 or member_loc1 == 0:
 			i += 1
 			continue
-		try:
-			if seen[self] != None:
-				seen[self].add(loc)
-		except KeyError, e:
-			seen[self] = set([loc])
-		try:
-			r = member.memcmp(member_loc, member_loc1, depth-1, seen)
-		#except EndOfListPassException, e:
-		#	iseq = iseq and e[1]
-		#	continue
-
-		# in case of NULL pointers or Userspace Addresses we 
-		# assume the two images to be the same, since NULL Pointers 
-		# should be the same and in case of userspace addresses, we
-		# cannot check
-		except NullPointerException, e:
-			i += 1
-			continue
-		except UserspaceVirtualAddressException, e:
-			i += 1
-			continue
-#		if r == None:
-#			# there has been a EndOfListException, so we assume the symbols in both
-#			# memory images to be the same
-#			# additionally we have to pass the EndOfListException up
-#			iseq = True
-#			break
-#		else:
-		if not r:
-			iseq = False
-			break
-		i += 1
-	return iseq
-#	except EndOfListException,  e:
-#            print "got end of list", str(e)
-#	    raise EndOfListPassException("passed up", iseq)
-#        except NullPointerException, e:
-#	    # we just print a warning here and ignore the exception
-#            # TODO: overthink if we are doing the right thing here
-#	    # 	    is is the right thing to just assume null pointer
-#	    #       locations to be the same, if they are not a EndOfList?
-#            print "ignored: NullPointerException",  str(e)
-#            print "item: ",  self.get_name()
-#	    pass
+		comparator.enqueue(sympath + "." + real_member.get_name(), member, member_loc, member_loc1)
+	        i += 1
+	return
             
     def __getitem__(self, item, loc=None):
         """
@@ -265,7 +205,7 @@ class Union(Struct):
     "This type represents a C-union which is basically a Struct where all members have the offset 0."
     def __str__(self, depth=MAX_DEPTH):
         return "union %s {\n%s}" % (self.get_name(), self.stringy(depth))
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	return True
 
 class Array(Type):
@@ -291,31 +231,15 @@ class Array(Type):
 
 	return ret
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	    try:
-		    if seen[self] != None:
-			    if loc in seen[self]:
-				    return True
-	    except KeyError, e:
-		    pass
-
-	    iseq = True
-	    i = 0
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	    # this is a dirty hack to iterate over members in both
 	    # memory images at the same time
-	    for member, member_loc in self.__iter__(loc, depth):
-		    member1, member_loc1 = self.__getitem__(i, loc1, depth)
-		    try: 
-			    if seen[self] != None:
-				    seen[self].add(loc)
-		    except KeyError, e:
-			    seen[self] = set([loc])
-		    r = member.memcmp(member_loc, member_loc1, depth-1, seen)
-		    if not r:
-			    iseq = False
-			    break
+	    i = 0
+	    for member, member_loc in self.__iter__(loc, MAX_DEPTH):
+		    member1, member_loc1 = self.__getitem__(i, loc1, MAX_DEPTH)
+		    comparator.enqueue(sympath + "." + member.get_name(), member, member_loc, member_loc1)
 		    i += 1
-	    return iseq
+	    return
 
     def get_element_size(self):
 	"iterate on base-types and return the first one with size-information or None if no size seems to be known"
@@ -364,7 +288,7 @@ class Function(Type):
     def value(self, loc, depth=MAX_DEPTH):
 	"returns a callable function object"
 	return KernelFunction(loc, type)
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	return True
 
 class KernelFunction:
@@ -442,19 +366,10 @@ class BasicType(SizedType):
 	except MemoryAccessException, e:
 	  return e
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	try:
-		if seen[self] != None:
-			if loc in seen[self]:
-				return True
-	except:
-		pass
-	try:
-		val1 = self.get_value(loc,  base_type_to_memory["%s-%d" % (self.name, self.encoding)], info=self, image=0)
-		val2 = self.get_value(loc1, base_type_to_memory["%s-%d" % (self.name, self.encoding)], info=self, image=1)
-		return val1 == val2
-	except MemoryAccessException, e:
-		return (self.name, e)
+    def memcmp(self, loc, loc1, comparator, sympath=""):
+	val1 = self.get_value(loc,  base_type_to_memory["%s-%d" % (self.name, self.encoding)], info=self, image=0)
+	val2 = self.get_value(loc1, base_type_to_memory["%s-%d" % (self.name, self.encoding)], info=self, image=1)
+	return val1 == val2
 
 class Enum(SizedType):
     enums = {}
@@ -473,19 +388,8 @@ class Variable(Type):
 	return self.type_list[self.base].resolve(loc, depth)
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth)
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	try:
-		if seen[self] != None:
-			if loc in seen[self]:
-				return True
-	except KeyError, e:
-		pass
-	try:
-		if seen[self] != None:
-			seen[self].add(loc)
-	except KeyError, e:
-		seen[self] = set([loc])
-	return self.type_list[self.base].memcmp(loc, loc1, depth, seen)
+    def memcmp(self, loc, loc1, comparator, sympath=""):
+	comparator.enqueue(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
 
 class Const(Variable):
     pass
@@ -575,14 +479,7 @@ class Pointer(BasicType):
 	"needs to be overriden, as the object might be nonzero (i.e. not None) even though __len__() returns 0"
 	return True
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	try:
-		if seen[self] != None:
-			if loc in seen[self]:
-				return True
-	except KeyError, e:
-		pass
-
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	ptr = self.get_value(loc)
 	ptr1 = self.get_value(loc1, image=1)
 	
@@ -592,12 +489,7 @@ class Pointer(BasicType):
 		return False
 
 	if self.base is not None and ptr != 0:
-		try: 
-			if seen[self] != None:
-				seen[self].add(loc)
-		except KeyError, e:
-			seen[self] = set([loc])
-		return self.type_list[self.base].memcmp(ptr, ptr1, depth-1, seen)
+		comparator.enqueue(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], ptr, ptr1)
 	else:
 		return True
 
@@ -607,19 +499,8 @@ class Typedef(Type):
 	return self.type_list[self.base].resolve(loc, depth-1)
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth-1)
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	try:
-		if seen[self] != None:
-			if loc in seen[self]:
-				return True
-	except KeyError, e:
-		pass
-	try:
-		if seen[self] != None:
-			seen[self].add(loc)
-	except:
-		seen[self] = set([loc])
-	return self.type_list[self.base].memcmp(loc, loc1, depth-1, seen)
+    def memcmp(self, loc, loc1, comparator, sympath=""):
+	comparator.enqueue(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
 
 resolve_pointer   = lambda loc, img=0: BasicType.get_value(loc, image=img)
 

@@ -5,7 +5,7 @@ import sys
 if __name__=='__main__':
   types, names, addresses = init("../ubuntu_memdump_before_terminal.dump")  
 
-  memory.map("../ubuntu_memdump_after_terminal.dump", 600000000, 20000, 1)
+  memory.map("../ubuntu_memdump_after_terminal.dump", 600000000, 600000000, 1)
 
   pgt = kernel_name('__ksymtab_init_level4_pgt')
   memory.set_init_level4_pgt(int(pgt.value.get_value()))
@@ -13,9 +13,9 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('_mpio_cache')
-#  print temp.memcmp()
-#  sys.exit(0) 
+  temp = kernel_name('default_backing_dev_info')
+  print temp.memcmp()
+  sys.exit(0) 
 
   symcounter = 0
   samecounter = 0
@@ -27,19 +27,12 @@ if __name__=='__main__':
 	if k == None:
 		continue
 	symcounter += 1
-  	try:
-#		print k, ": ",
-		p = Memory(*v) 
-		if not p.memcmp():
-#			print "false",
-			print k
-			diffcounter += 1
-		else:
-#			print "true"
-			samecounter += 1
-	except MemoryAccessException, e:
+	p = Memory(*v) 
+	print "comparing: ", k
+	p.memcmp()
+#	except MemoryAccessException, e:
 #		print k, ": ", e
-		errorcounter += 1
+#		errorcounter += 1
 #	except RecursingTypeException, e:
 #		errorcounter += 1
 #	except RuntimeError, e:
@@ -48,6 +41,7 @@ if __name__=='__main__':
 #		errorcounter += 1
 #	except PageNotPresent, e:
 #		errorcounter += 1
+
   print "stats:"
   print "total symbols: %i, stayed same: %i, differring: %i, errors: %i" % (symcounter, samecounter, diffcounter, errorcounter)
   print "%f %% symbols changed or had errors" % (100.0 - (((samecounter + diffcounter) / (1.0 * symcounter)) * 100.0))

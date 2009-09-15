@@ -110,19 +110,10 @@ class KernelLinkedList(Struct):
 	  else:
 	    yield self.parent(self.get_pointer_value(loc,offset))
 
-    def memcmp(self, loc, loc1, depth=MAX_DEPTH, seen={}):
-	    iseq = True
+    def memcmp(self, loc, loc1, comparator, sympath=""):
 	    next_offset = 0
 	    if self.name == "children":
 		next_offset = -16
-	    try:
-		    if seen[self] != None:
-			    if loc in seen[self]:
-				    return True
-			    else:
-				    seen[self].add(loc)
-	    except KeyError, e:
-		    seen[self] = set([loc])
 	    try:	
 		    if loc is None:
 			    next_tuple = self.parent()
@@ -133,10 +124,9 @@ class KernelLinkedList(Struct):
 		    else:
 			    next1_tuple = self.parent(self.get_pointer_value(loc1, self.entries["next"], 1) + next_offset)
             except EndOfListException, e:
-		    return iseq
-	    r = next_tuple[0].memcmp(next_tuple[1], next1_tuple[1], depth-1, seen)
-	    iseq = iseq and r
-	    return iseq
+		    return True
+#	    return True
+	    comparator.enqueue(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
 
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))
