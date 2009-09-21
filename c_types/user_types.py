@@ -125,7 +125,6 @@ class KernelLinkedList(Struct):
 			    next1_tuple = self.parent(self.get_pointer_value(loc1, self.entries["next"], 1) + next_offset)
             except EndOfListException, e:
 		    return True
-#	    return True
 	    comparator.enqueue(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
 
     def stringy(self, depth=0):

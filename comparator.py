@@ -21,17 +21,20 @@ class ComparatorThread(Thread):
 		while len(tasks) > 0:
 			while len(tasks) > 0:
 				sympath, type, loc, loc1 = tasks.pop(0)
-#					print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
+#				print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
 				try:
 					self.compared += 1
 					r = type.memcmp(loc, loc1, self.comparator, sympath)
 					if r != None and r == False:
 						print "differing: ", sympath
 				except UserspaceVirtualAddressException, e:
+					self.comparator.finc()
 					pass
 				except NullPointerException, e:
+					self.comparator.finc()
 					pass
 				except MemoryAccessException, e:
+					self.comparator.finc()
 					pass
 			tasks = self.comparator.fetch_tasks()
 		return
@@ -40,8 +43,6 @@ class Comparator():
 	"""
 	Manages an internal list of symbols to compare and then compares then
 	"""
-# TODO: first do it non-threaded
-#	then enhance!
 	def __init__(self):
 		self.queue = []
 		self.seen = set([])
