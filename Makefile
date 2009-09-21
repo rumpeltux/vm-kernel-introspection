@@ -1,5 +1,5 @@
 
-KERNEL_SOURCE = /usr/src/linux-headers-`uname -r`
+KERNEL_SOURCE = /usr/src/linux
 
 all: memory.c bincmp.c kernel_defines.h
 	python setup.py build

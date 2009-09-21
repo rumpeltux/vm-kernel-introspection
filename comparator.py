@@ -21,7 +21,7 @@ class ComparatorThread(Thread):
 		while len(tasks) > 0:
 			while len(tasks) > 0:
 				sympath, type, loc, loc1 = tasks.pop(0)
-#					print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
+#				print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
 				try:
 					self.compared += 1
 					r = type.memcmp(loc, loc1, self.comparator, sympath)
@@ -40,8 +40,6 @@ class Comparator():
 	"""
 	Manages an internal list of symbols to compare and then compares then
 	"""
-# TODO: first do it non-threaded
-#	then enhance!
 	def __init__(self):
 		self.queue = []
 		self.seen = set([])
@@ -88,24 +86,6 @@ class Comparator():
 		print "\nTotal compared: ", len(self.seen)
 		for i in range(num_threads):
 			print "Thread ", i, " compared: ", self.threads[i].compared
-# 		pc = 0
-# 		while len(self.queue) > 0:
-# 			pc += 1 
-# 			sympath, type, loc, loc1 = self.queue.pop(0)
-# #			print hex(loc), ": ", sympath, "q: ", len(self.queue), " s: ", len(self.seen)
-# 			if pc > 100:
-# 				print "q: %i, s: %i\r" % (len(self.queue), len(self.seen)),
-# 				pc = 0
-# 			try:
-# 				r = type.memcmp(loc, loc1, self, sympath)
-# 				if r != None and r == False:
-# 					print "differing: ", sympath
-# 			except UserspaceVirtualAddressException, e:
-# 				pass
-# 			except NullPointerException, e:
-# 				pass
-# 			except MemoryAccessException, e:
-# 				pass
 	
 	def fetch_tasks(self, count=100):
 		#self.printc += 1
