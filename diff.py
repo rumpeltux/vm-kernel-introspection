@@ -14,8 +14,11 @@ if __name__=='__main__':
   sys.setrecursionlimit(8000)
 
   temp = kernel_name('default_backing_dev_info')
+#  temp = kernel_name('cdrom_sysctl_header')
   print temp.memcmp()
-  sys.exit(0) 
+  sys.exit(0)
+#  print temp.memcmp()
+#  sys.exit(0) 
 
   symcounter = 0
   samecounter = 0

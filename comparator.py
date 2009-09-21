@@ -47,9 +47,17 @@ class Comparator():
 		self.seen = set([])
 		self.slock = Lock()
 		self.qlock = Lock()
+		self.flock = Lock()
 		self.threads = []
 		self.printc = 0
+		self.faults = 0
 		pass
+
+	def finc(self):
+		self.flock.acquire()
+		self.faults += 1
+		self.flock.release()
+		
 		
 	def enqueue(self, sympath, type, loc, loc1):
 		"""
@@ -88,24 +96,8 @@ class Comparator():
 		print "\nTotal compared: ", len(self.seen)
 		for i in range(num_threads):
 			print "Thread ", i, " compared: ", self.threads[i].compared
-# 		pc = 0
-# 		while len(self.queue) > 0:
-# 			pc += 1 
-# 			sympath, type, loc, loc1 = self.queue.pop(0)
-# #			print hex(loc), ": ", sympath, "q: ", len(self.queue), " s: ", len(self.seen)
-# 			if pc > 100:
-# 				print "q: %i, s: %i\r" % (len(self.queue), len(self.seen)),
-# 				pc = 0
-# 			try:
-# 				r = type.memcmp(loc, loc1, self, sympath)
-# 				if r != None and r == False:
-# 					print "differing: ", sympath
-# 			except UserspaceVirtualAddressException, e:
-# 				pass
-# 			except NullPointerException, e:
-# 				pass
-# 			except MemoryAccessException, e:
-# 				pass
+
+		print "faults: ", self.faults, " ", ((1.0 * self.faults) / len(self.seen)) * 100.0, "%%"
 	
 	def fetch_tasks(self, count=100):
 		#self.printc += 1
