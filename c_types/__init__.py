@@ -488,10 +488,17 @@ class Pointer(BasicType):
 	if ptr == 0 or ptr1 == 0:
 		return False
 
-	if self.base is not None and ptr != 0:
-		comparator.enqueue(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], ptr, ptr1)
-	else:
-		return True
+	# don't compare the content of the memory pointed to,
+	# just compare the address pointed to itself.
+	# this should give us enough evidence about changes?
+	# TODO: ist this right?
+
+	return ptr == ptr1;
+
+#	if self.base is not None and ptr != 0:
+#		comparator.enqueue(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], ptr, ptr1)
+#	else:
+#		return True
 
 class Typedef(Type):
     def resolve(self, loc, depth=MAX_DEPTH):

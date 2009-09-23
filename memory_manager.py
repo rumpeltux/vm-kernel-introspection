@@ -125,7 +125,7 @@ Members are conveniently accessable:
 	"""
 	comparator = Comparator()
 	self.__type.memcmp(self.__loc, self.__loc, comparator, self.__type.name)
-	comparator.run()
+	return comparator.run()
     def to_xml(self, depth=MAX_DEPTH):
 	return to_xml(self.__value(depth)).toprettyxml(indent="  ")
 	

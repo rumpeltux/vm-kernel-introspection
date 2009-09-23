@@ -3,9 +3,9 @@ from tools import *
 import sys
 
 if __name__=='__main__':
-  types, names, addresses = init("../ubuntu_memdump_before_terminal.dump")  
+  types, names, addresses = init("../ubuntu_memory_before_terminal.dump")  
 
-  memory.map("../ubuntu_memdump_after_terminal.dump", 600000000, 600000000, 1)
+  memory.map("../ubuntu_memory_after_terminal.dump", 600000000, 600000000, 1)
 
   pgt = kernel_name('__ksymtab_init_level4_pgt')
   memory.set_init_level4_pgt(int(pgt.value.get_value()))
@@ -13,12 +13,11 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-  temp = kernel_name('default_backing_dev_info')
+#  temp = kernel_name('default_backing_dev_info')
 #  temp = kernel_name('cdrom_sysctl_header')
-  print temp.memcmp()
-  sys.exit(0)
+#  temp = kernel_name('sg_index_idr')
 #  print temp.memcmp()
-#  sys.exit(0) 
+#  sys.exit(0)
 
   symcounter = 0
   samecounter = 0
@@ -32,7 +31,9 @@ if __name__=='__main__':
 	symcounter += 1
 	p = Memory(*v) 
 	print "comparing: ", k
-	p.memcmp()
+	total, faults = p.memcmp()
+	symcounter += total
+	errorcounter += faults
 #	except MemoryAccessException, e:
 #		print k, ": ", e
 #		errorcounter += 1

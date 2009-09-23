@@ -79,31 +79,33 @@ class Comparator():
 		"""
 		run comparision until queue ist empty
 		"""
-		print "Starting thread ...",
+#		print "Starting thread ...",
 		for i in range(num_threads):
-			print i,
+#			print i,
 			cur = ComparatorThread(self)
 			self.threads.append(cur)
 		for i in range(num_threads):
 			self.threads[i].start()
 
-		print "\nWaiting for threads to finish ..."
+#		print "\nWaiting for threads to finish ..."
 
 		for i in range(num_threads):
 			self.threads[i].join()
-			print "\nTerminated: ", i
+#			print "\nTerminated: ", i
 
 
-		print "\nTotal compared: ", len(self.seen)
-		for i in range(num_threads):
-			print "Thread ", i, " compared: ", self.threads[i].compared
+#		print "\nTotal compared: ", len(self.seen)
+#		for i in range(num_threads):
+#			print "Thread ", i, " compared: ", self.threads[i].compared
 
 		print "faults: ", self.faults, " ", ((1.0 * self.faults) / len(self.seen)) * 100.0, "%%"
+		# (total compared, faults)
+		return (len(self.seen), self.faults)
 	
 	def fetch_tasks(self, count=100):
 		#self.printc += 1
 		#if self.printc >= 1:
-		print "q: %i, s: %i\r" % (len(self.queue), len(self.seen)),
+#		print "q: %i, s: %i\r" % (len(self.queue), len(self.seen)),
 		#	self.printc = 0
 		self.qlock.acquire()
 		x = self.queue[0:count]
