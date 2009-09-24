@@ -120,7 +120,7 @@ def init(filename=None, parents=False, system_map=False):
     global types, names, addresses
     if filename is not None:
 	filesize = 4 * 1024**3 if filename == "/dev/mem" else os.path.getsize(filename)
-	memory.map(filename, filesize, 600000000, 0)
+	memory.map(filename, filesize, filesize, 0)
     types, memory = type_parser.load(open("data.dumpc"))
 
     if parents:

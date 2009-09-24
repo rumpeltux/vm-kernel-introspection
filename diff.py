@@ -3,9 +3,17 @@ from tools import *
 import sys
 
 if __name__=='__main__':
-  types, names, addresses = init("../ubuntu_memory_before_terminal.dump")  
+  if len(sys.argv) < 3:
+	  print "usage: ", sys.argv[0], "<reference memory image> <altered memory image>"
+	  sys.exit(1)
+  
+  refimg = sys.argv[1]
+  newimg = sys.argv[2]
 
-  memory.map("../ubuntu_memory_after_terminal.dump", 600000000, 600000000, 1)
+  types, names, addresses = init(refimg)
+
+  filesize = 4 * 1024**3 if newimg == "/dev/mem" else os.path.getsize(newimg)
+  memory.map(newimg, filesize, filesize, 1)
 
   pgt = kernel_name('__ksymtab_init_level4_pgt')
   memory.set_init_level4_pgt(int(pgt.value.get_value()))
