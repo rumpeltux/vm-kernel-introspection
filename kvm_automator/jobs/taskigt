@@ -1,0 +1,4 @@
+file: /home/domi/kvm/rootkits/ported_rootkits/taskigt.tar.bz2
+command: tar xjf taskigt.tar.bz2
+command: insmod taskigt/taskigt.ko
+

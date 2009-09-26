@@ -1,0 +1,4 @@
+file: /home/domi/kvm/rootkits/ported_rootkits/module_hide.tar.bz2
+command: tar xjf module_hide.tar.bz2
+command: insmod module_hide/cleaner.ko
+
