@@ -126,6 +126,13 @@ Members are conveniently accessable:
 	comparator = Comparator()
 	self.__type.memcmp(self.__loc, self.__loc, comparator, self.__type.name)
 	return comparator.run()
+    def revmap(self):
+	"""
+	Uses the Comparator class to calculate a reverse mapping from memory addresses to symbols.
+	"""
+	comparator = Comparator()
+	self.__type.revmap(self.__loc, comparator, self.__type.name)
+	return comparator.revmap()
     def to_xml(self, depth=MAX_DEPTH):
 	return to_xml(self.__value(depth)).toprettyxml(indent="  ")
 	

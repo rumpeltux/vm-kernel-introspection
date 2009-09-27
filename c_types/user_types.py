@@ -128,6 +128,9 @@ class KernelLinkedList(Struct):
 	    # TODO: ignore lists, since they cause many problems ...
 	    return True
 	    comparator.enqueue(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
+    
+    def revmap(self, loc, comparator, sympath=""):
+	    comparator.just_add_rev(sympath + "." + self.get_name(), self, loc)
 
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))

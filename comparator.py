@@ -39,6 +39,41 @@ class ComparatorThread(Thread):
 			tasks = self.comparator.fetch_tasks()
 		return
 
+class RevmapThread(Thread):
+	def __init__(self, comparator):
+		Thread.__init__(self)
+		self.comparator = comparator
+		self.revmapped = 0
+		for sig in range(1, signal.NSIG):
+			try:
+		        	signal.signal(sig, signal.SIG_DFL)
+	        	except RuntimeError, e:
+				pass
+		pass
+
+	def run(self):
+		tasks = self.comparator.fetch_tasks()
+		while len(tasks) > 0:
+			while len(tasks) > 0:
+				sympath, type, loc = tasks.pop(0)
+#				print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
+				try:
+					self.revmapped += 1
+					type.revmap(loc, self.comparator, sympath)
+				except UserspaceVirtualAddressException, e:
+					self.comparator.finc()
+					pass
+				except NullPointerException, e:
+					self.comparator.finc()
+					pass
+				except MemoryAccessException, e:
+					self.comparator.finc()
+					pass
+			tasks = self.comparator.fetch_tasks()
+		return
+
+
+
 class Comparator():
 	"""
 	Manages an internal list of symbols to compare and then compares then
@@ -46,6 +81,7 @@ class Comparator():
 	def __init__(self):
 		self.queue = []
 		self.seen = set([])
+		self.revmap_set = set([])
 		self.slock = Lock()
 		self.qlock = Lock()
 		self.flock = Lock()
@@ -59,8 +95,7 @@ class Comparator():
 		self.faults += 1
 		self.flock.release()
 		
-		
-	def enqueue(self, sympath, type, loc, loc1):
+	def enqueue_diff(self, sympath, type, loc, loc1):
 		"""
 		Enqueue an item to the compare list
 		"""
@@ -74,6 +109,60 @@ class Comparator():
 		self.qlock.release()
 		self.slock.release()
 		return
+	
+	def just_add_rev(self, sympath, type, loc):
+		"""
+		Just add the symbol and location to the seen list
+		"""
+		self.slock.acquire()
+		self.seen.add(loc)
+		self.revmap_set.add((loc, type))
+		self.slock.release()
+		return
+
+	def enqueue_rev(self, sympath, type, loc):
+		"""
+		Enqueue an item to the reverse mapping jobs list
+		"""
+		self.slock.acquire()
+		if loc in self.seen:
+			self.slock.release()
+			return
+		self.qlock.acquire()
+		self.seen.add(loc)
+		self.revmap_set.add((loc, type))
+		self.queue.append((sympath, type, loc))
+		self.qlock.release()
+		self.slock.release()
+		return
+
+	def revmap(self, num_threads=1):
+		"""
+		run reverse mapping calculation until queue is empty
+		"""
+#		print "Starting thread ...",
+		for i in range(num_threads):
+#			print i,
+			cur = RevmapThread(self)
+			self.threads.append(cur)
+		for i in range(num_threads):
+			self.threads[i].start()
+
+#		print "\nWaiting for threads to finish ..."
+
+		for i in range(num_threads):
+			self.threads[i].join()
+#			print "\nTerminated: ", i
+
+
+#		print "\nTotal compared: ", len(self.seen)
+#		for i in range(num_threads):
+#			print "Thread ", i, " compared: ", self.threads[i].revmapped
+
+#		print "faults: ", self.faults, " ", ((1.0 * self.faults) / len(self.seen)) * 100.0, "%%"
+		# (revmap, faults)
+		return (self.revmap_set, self.faults)
+
 
 	def run(self, num_threads=3):
 		"""
