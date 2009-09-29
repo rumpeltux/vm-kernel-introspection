@@ -127,7 +127,7 @@ class KernelLinkedList(Struct):
 		    return True
 	    # TODO: ignore lists, since they cause many problems ...
 	    return True
-	    comparator.enqueue(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
+	    comparator.enqueue_diff(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
     
     def revmap(self, loc, comparator, sympath=""):
 	    comparator.just_add_rev(sympath + "." + self.get_name(), self, loc)
