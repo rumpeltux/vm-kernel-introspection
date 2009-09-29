@@ -505,4 +505,7 @@ class Typedef(Type):
 resolve_pointer   = lambda loc, img=0: BasicType.get_value(loc, image=img)
 
 class UnwantedType(Type):
-    pass
+    def resolve(self, loc=None, depth=MAX_DEPTH):
+	if self.base is not None and self.base in self.type_list:
+	  return self.type_list[self.base].resolve(loc, depth)
+	return self

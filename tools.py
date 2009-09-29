@@ -6,6 +6,7 @@ from c_types.user_types import *
 
 from memory_manager import *
 import os
+from cPickle import load
 
 #type_of_address = lambda y: types[memory[y]]
 cast = lambda memory, type: Memory(memory.get_loc(), type)
@@ -62,26 +63,102 @@ def handle_array(array, member, struct, cls):
   #cannot delete it because it might be referenced by other structs!
   #del types[member.id]
 
+def load_references(filename="meta_info.dump"):
+  refs = load(open(filename))
+  out = {}
+  #(line, a,b, c,d)
+  for i in refs:
+    if i[2] is None:
+      i = (i[0], i[2], i[1], i[3], i[4])
+    b = re.sub(r'\[.+?\]', '[]', i[2])
+    if i[1] is not None:
+      out[i[1]+'.'+b] = i
+    else:
+      out[b] = i
+  return []
+    
+def name_resolver(name, base=None):
+    """
+    resolves a type-reference by name and returns the chain of types leading there
+    e.g: name_resolver('zone.free_area[].free_list[]')
+    
+    2 cases to handle
+    a) name.value, name->value
+    b) name[]
+    """
+    #base = type_of(a).resolve()
+    elems = re.split(r'->|\.', name)
+    
+    if base is None:
+      first_name = elems.pop(0)
+      if first_name[-2:] == '[]': # case b, handle the array
+	base = type_of(first_name[:-2])
+	chain = [base]
+	base = base.get_base()
+	chain.append(base)
+	base = base.resolve()[0]
+      else:
+	base = type_of(first_name)
+	chain = [base]
+    else:
+      chain = [base]
+    
+    #print "a", chain, base
+    base = base.resolve()[0]
+    chain.append(base)
+    
+    for i in elems: #traverse the path names
+	i = i.strip()
+	if i[-2:] == '[]': # case b, handle the array
+	  i = i[:-2]
+	  is_array = True
+	else:
+	  is_array = False
+	
+	base = base[i]	#get the member named i
+	chain.append(base)
+	base = base.resolve()[0]
+	chain.append(base)
+	  
+	if is_array:	#append the array's base-type
+	  base = base.get_base()
+	  chain.append(base)
+	  base = base.resolve()[0]
+	  chain.append(base)
+	  
+    return chain
+
 def prepare_list_heads():
   """
   kernel lists are a special thing and need special treatment
   this routine replaces all members of type struct list_head with
   an appropriate replacement that takes care handling these lists
   """
-  
+  #TODO: in progress of rewriting, not working yet
   member_list = []
   array_handlers = []
+  
+  refs = load_references()
+  
   for k,v in types.iteritems():
     if isinstance(v, Struct):
       for member in v:
 	lh = member.get_base()
 	if lh and lh.name:
 	  if lh.name == "list_head":
-	    member_list.append((KernelDoubleLinkedList(v, member), member))
+	    print "checking '%s'.'%s'" % (v.get_name(), member.get_name()),
+	    name = '%s.%s' % (v.get_name(), member.get_name())
+	    if name in refs:
+	      print "found at %s → '%s'.'%s'" % (refs[name][0], refs[name][3], refs[name][4])
+	      #print get_type(refs[name][3], refs[name][4])
+	    else:
+	      print "not found"
+	    #member_list.append((KernelDoubleLinkedList(v, member), member))
 	if isinstance(lh, Array) and lh.get_base():
 	  ar_lh = lh.get_base()
 	  if ar_lh.name == "list_head":
-	    array_handlers.append((lh, member, v, KernelDoubleLinkedList))
+	    print "not yet handling array at '%s'.'%s'" % (v.get_name(), member.get_name())
+	    #array_handlers.append((lh, member, v, KernelDoubleLinkedList))
 
   for val in array_handlers:
     handle_array(*val)
@@ -104,7 +181,6 @@ def prepare_strings():
 
     for s,v in typ_list:
       s.takeover(v)
-	    
 
 def init(filename=None, parents=False, system_map=False):
     """
