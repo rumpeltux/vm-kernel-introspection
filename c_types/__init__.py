@@ -167,22 +167,29 @@ class Struct(SizedType):
 	#  or linked list at the time).
 	i = 0
 	for real_member, member_loc in self.__iter__(loc):
-		member, member_loc = real_member.resolve(member_loc, MAX_DEPTH-1)
-		# TODO: fix this and use isinstance(self, Struct) ... instead?
-		if hasattr(self, "members"):
-			ind = self.members[i]
-			real_member1 = self.type_list[ind]
-			member_loc1 = loc1 + self.type_list[ind].offset
-		elif hasattr(self, "entries"):
-			name, offset = (self.entries.items())[i]
-			real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
-		else:
-			raise RuntimeError("not a struct and not a linked list")
-		member1, member_loc1 = real_member1.resolve(member_loc1, MAX_DEPTH-1)
-		if member_loc == 0 or member_loc1 == 0:
-			i += 1
-			continue
-		comparator.enqueue_diff(sympath + "." + real_member.get_name(), member, member_loc, member_loc1)
+		try:
+			member, member_loc = real_member.resolve(member_loc, MAX_DEPTH-1)
+			# TODO: fix this and use isinstance(self, Struct) ... instead?
+			if hasattr(self, "members"):
+				ind = self.members[i]
+				real_member1 = self.type_list[ind]
+				member_loc1 = loc1 + self.type_list[ind].offset
+			elif hasattr(self, "entries"):
+				name, offset = (self.entries.items())[i]
+				real_member1, member_loc1 = self.parent(resolve_pointer(loc1+offset))
+			else:
+				raise RuntimeError("not a struct and not a linked list")
+			member1, member_loc1 = real_member1.resolve(member_loc1, MAX_DEPTH-1)
+			if member_loc == 0 or member_loc1 == 0:
+				i += 1
+				continue
+			comparator.enqueue_diff(sympath + "." + real_member.get_name(), member, member_loc, member_loc1)
+		except UserspaceVirtualAddressException, e:
+			pass
+		except NullPointerException, e:
+			pass
+		except MemoryAccessException, e:
+			pass
 	        i += 1
 	return
     
