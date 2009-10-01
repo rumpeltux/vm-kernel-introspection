@@ -9,9 +9,16 @@ import os
 from cPickle import load
 
 #type_of_address = lambda y: types[memory[y]]
+
+#creates a new memory instance of type type at the same location as memory
 cast = lambda memory, type: Memory(memory.get_loc(), type)
-type_of = lambda name: types[names[name]]
+#returns the first suiting type named name
+type_of = lambda name: types[names[name][0]]
+#returns all types named name
+types_of = lambda name: [types[i] for i in names[name]]
+#creates a pointer to the first suiting type named name
 pointer_to = lambda name: Pointer(type_of(name), types)
+#returns a memory instance of a global kernel variable named name
 kernel_name = lambda name: Memory(*addresses[name])
 
 def get_parent_names(s, v=None, d=0):
@@ -70,75 +77,16 @@ def load_references(filename="meta_info.dump"):
   for i in refs:
     if i[2] is None:
       i = (i[0], i[2], i[1], i[3], i[4])
-    b = re.sub(r'\[.+?\]', '[]', i[2])
+    b = re.sub(r'\[.+?\]', '[]', i[2]) #replace any indexes in array notation
     if i[1] is not None:
       out[i[1]+'.'+b] = i
     else:
       out[b] = i
-  return []
-    
-def name_resolver(name, base=None):
-    """
-    resolves a type-reference by name and returns the chain of types leading there
-    e.g: name_resolver('zone.free_area[].free_list[]')
-    
-    2 cases to handle
-    a) name.value, name->value
-    b) name[]
-    """
-    #base = type_of(a).resolve()
-    elems = re.split(r'->|\.', name)
-    
-    if base is None:
-      first_name = elems.pop(0)
-      if first_name[-2:] == '[]': # case b, handle the array
-	base = type_of(first_name[:-2])
-	chain = [base]
-	base = base.get_base()
-	chain.append(base)
-	base = base.resolve()[0]
-      else:
-	base = type_of(first_name)
-	chain = [base]
-    else:
-      chain = [base]
-    
-    #print "a", chain, base
-    base = base.resolve()[0]
-    chain.append(base)
-    
-    for i in elems: #traverse the path names
-	i = i.strip()
-	if i[-2:] == '[]': # case b, handle the array
-	  i = i[:-2]
-	  is_array = True
-	else:
-	  is_array = False
-	
-	base = base[i]	#get the member named i
-	chain.append(base)
-	base = base.resolve()[0]
-	chain.append(base)
-	  
-	if is_array:	#append the array's base-type
-	  base = base.get_base()
-	  chain.append(base)
-	  base = base.resolve()[0]
-	  chain.append(base)
-	  
-    return chain
+  return out
 
-def prepare_list_heads():
-  """
-  kernel lists are a special thing and need special treatment
-  this routine replaces all members of type struct list_head with
-  an appropriate replacement that takes care handling these lists
-  """
-  #TODO: in progress of rewriting, not working yet
-  member_list = []
-  array_handlers = []
-  
-  refs = load_references()
+from linked_lists import *
+
+def prepare_list_heads_todo():
   
   for k,v in types.iteritems():
     if isinstance(v, Struct):
@@ -205,7 +153,7 @@ def init(filename=None, parents=False, system_map=False):
 
     names = {}
     for k,v in types.iteritems():
-      names[v.name] = k
+      names[v.name] = names.get(v.name, []) + [k]
 
     addresses = {}
     for k,v in memory.iteritems():

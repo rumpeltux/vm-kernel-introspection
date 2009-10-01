@@ -7,8 +7,11 @@ class String(Array):
     
     should be initialised with a Char-Array or Pointer to Char
     e.g.
-	String(Array(type_of('unsigned char')))
-	String(Pointer(type_of('char')))
+	s = String(Array(type_of('unsigned char')))
+	s = String(Pointer(type_of('char')))
+
+    s will be a volatile type that cannot be referenced by other types
+    unless s.register() is called
     """
     def __init__(self, typ):
 	self.type_list = typ.type_list
@@ -67,11 +70,16 @@ class KernelLinkedList(Struct):
     offset = 0
     entries = {}
 
-    def __init__(self, struct, member):
-	"initialises the linked list entry"
+    def __init__(self, struct, member, offset=None, name=None):
+	"""
+	initialises the linked list entry
+	member is a Member instance for the list_head entry that is to be replaced
+	if no offset is specified, member.offset will be used
+	the name is entirely optional
+	"""
 	self.type_list = struct.type_list
 	self._parent   = struct.id
-	self.offset    = member.offset
+	self.offset    = offset if offset is not None else member.offset
 	self.name      = member.name # "list_head(%s)" % struct.get_name()
     def takeover(self, member):
 	"replaces all occurances of member in the global type list with this entry"
@@ -112,6 +120,7 @@ class KernelLinkedList(Struct):
 
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	    next_offset = 0
+	    #TODO: no more special handling required
 	    if self.name == "children":
 		next_offset = -16
 	    try:	
