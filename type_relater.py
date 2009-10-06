@@ -10,6 +10,7 @@
 
 import os, sys, re
 import type_parser
+from tools.xml_report import XMLReport
 
 def pp(file, line):
     "print path"
@@ -39,9 +40,15 @@ class DebugSymbols:
     def get_type_at_line(self, name, line):
 	cur = None
 	for typ in self.names[name]:
-	    if typ.line <= line:
+	    #file 0 is other variables (externs?) all on line 0, so we might consider them as well
+	    #file 1 is the source-file, others are included headers
+	    if typ.line <= line and typ.file <= 1:
 	      if not cur or cur.line < typ.line:
 		  cur = typ
+	# if we did not find a matching name in the source-file,
+	# take the first remaining candidate (usually from headers)
+	if cur is None:
+	  cur = self.names[name][0] if name in self.names else None
 	return cur
 
 accessed_members = {}
@@ -69,7 +76,7 @@ class TypeRelater:
     performs the actual source-file analysation and the matching with
     debug symbols providing a list of references for further use
     """
-    def __init__(self, file):
+    def __init__(self, file, report):
         "handles a single source file"
 	
 	handlers = {
@@ -84,10 +91,12 @@ class TypeRelater:
 	}
 	self.loop_refs = {}
 	self.references = []
+	self.report = report
 	self.file = file
 	self.line = 0
 	for line in open(file):
 	    self.line += 1
+	    self.line_content = line
 	    for exp in match_expressions:
 		m = exp.search(line)
 		if m:
@@ -98,25 +107,31 @@ class TypeRelater:
 		      try:
 			handlers[name](args)
 		      except Exception, e:
-			self.log(str(e), (name, args))
+			self.log('exception', name, args, extra=str(e))
 		    else:
-			self.log('unhandled', (name, args))
+			self.log('unhandled', name, args)
 			
-    def log(self, msg, args):
-	"outputs a log-message"
-	print "(%s) %s: %s" % (msg, pp(self.file, self.line), args)
+    def log(self, group, info, args, extra=""):
+	"saves a log-message"
+	node = self.report.add(group)
+	node.setAttribute('line', str(self.line))
+	node.setAttribute('file', self.file)
+	node.setAttribute('line-content', self.line_content)
+	if extra != "": node.setAttribute('extra', extra)
+	node.setAttribute('info', info)
+	self.report.text(str(args), node)
 	
     def register_ref(self, type, from_struct, from_member, to_struct, to_member):
 	"registers a reference"
-	def check_name(x):
+	def check_name(x, i):
 	  if x is not None and re.compile(r'[^\w \.\-\>]').search(x):
-	    self.log('name-error', x)
-	check_name(from_struct)
-	check_name(from_member)
-	check_name(to_struct)
-	check_name(to_member)
+	    self.log('name-error', x, str(i))
+	check_name(from_struct, 0)
+	check_name(from_member, 1)
+	check_name(to_struct, 2)
+	check_name(to_member, 3)
 	self.references.append((pp(self.file, self.line), from_struct, from_member, to_struct, to_member))
-	print "%s_REF: %s: %s.%s → %s.%s" % (type, pp(self.file, self.line), from_struct, from_member, to_struct, to_member)
+	#print "%s_REF: %s: %s.%s → %s.%s" % (type, pp(self.file, self.line), from_struct, from_member, to_struct, to_member)
 	
     # ----- debug symbol access ------
   
@@ -132,7 +147,7 @@ class TypeRelater:
 	try:
 	  typ = self.dbg_syms.get_type_at_line(name, self.line)
 	except KeyError:
-	  print "unable to acquire typ for %s (%s)" % (name, pp(self.file, self.line))
+	  self.log('dbgsym-fail', name)
 	  typ = None
 	
 	if typ:
@@ -181,7 +196,7 @@ class TypeRelater:
 	if not match and typ_pos and head.lstrip()[0] == '&':
 	    self.register_ref('GLOB', None, head.lstrip()[1:].strip(), typ_pos.get_name(), member.strip())
 	    return
-	self.log('uncatched', args)
+	self.log('uncatched', "untyped_access_handler", args)
 
 	
     def list_for_each_entry_safe(self, args):
@@ -216,7 +231,7 @@ class TypeRelater:
 	      self.loop_refs[pos.strip()] = (self.line, None, head.lstrip()[1:].strip())
 	      return
 	    
-	self.log('uncatched', args)
+	self.log('uncatched', "loop_begin_handler", args)
 
     def loop_begin_handler_safe(self, args):
 	#if len(args) != 3: return
@@ -232,7 +247,7 @@ class TypeRelater:
 	  r = self.loop_refs[ptr]
 	  self.register_ref('LIST-%d' % r[0], r[1], r[2], type.replace("struct ","",1), member)
 	  return
-	self.log('unreferenced', args)
+	self.log('unreferenced', "list_access_handler", args)
 
 def indicate_progress(a,b):
     sys.stderr.write('\rparsing progress: %.2f%%' % (100. * a / b))
@@ -244,6 +259,7 @@ def run(path, out_file):
     refs = []
     
     sys.stderr.write('\rinitialisation…')
+    report = XMLReport('report')
     
     #quickly count all files:
     count = 0
@@ -258,10 +274,11 @@ def run(path, out_file):
 	    if file_match.search(file):
 	      i += 1
 	      indicate_progress(i, count)
-	      refs += TypeRelater(os.path.join(dirpath, file)).references
+	      refs += TypeRelater(os.path.join(dirpath, file), report).references
     
     from cPickle import dump
     dump(refs, open(out_file, 'w'))
+    print report
 
 if __name__ == '__main__':
   from c_types.extensions import clean, compare, string, init

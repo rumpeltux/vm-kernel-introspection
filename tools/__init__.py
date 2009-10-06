@@ -15,7 +15,7 @@ cast = lambda memory, type: Memory(memory.get_loc(), type)
 #returns the first suiting type named name
 type_of = lambda name: types[names[name][0]]
 #returns all types named name
-types_of = lambda name: [types[i] for i in names[name]]
+types_of = lambda name: [types[i] for i in names.get(name, [])]
 #creates a pointer to the first suiting type named name
 pointer_to = lambda name: Pointer(type_of(name), types)
 #returns a memory instance of a global kernel variable named name
@@ -70,20 +70,6 @@ def handle_array(array, member, struct, cls):
   #cannot delete it because it might be referenced by other structs!
   #del types[member.id]
 
-def load_references(filename="meta_info.dump"):
-  refs = load(open(filename))
-  out = {}
-  #(line, a,b, c,d)
-  for i in refs:
-    if i[2] is None:
-      i = (i[0], i[2], i[1], i[3], i[4])
-    b = re.sub(r'\[.+?\]', '[]', i[2]) #replace any indexes in array notation
-    if i[1] is not None:
-      out[i[1]+'.'+b] = i
-    else:
-      out[b] = i
-  return out
-
 from linked_lists import *
 
 def prepare_list_heads_todo():
@@ -130,7 +116,7 @@ def prepare_strings():
     for s,v in typ_list:
       s.takeover(v)
 
-def init(filename=None, parents=False, system_map=False):
+def init(filename=None, parents=False, system_map=False, linked_lists=False):
     """
     helper function to initialise a dump-session.
 
@@ -139,6 +125,8 @@ def init(filename=None, parents=False, system_map=False):
     if system_map if set to a filename, this file is interpreted as
       a System.map and all its symbols will become available in the program (TODO)
       additionally other sources to load symbols will be loaded from the memory image
+    if linked_lists is set, the information created by type_relater.py will
+      be read, to auto associate kernel linked list information
     """
     import memory, type_parser
     global types, names, addresses
@@ -169,9 +157,12 @@ def init(filename=None, parents=False, system_map=False):
       #TODO: load_system_map(system_map)
       load_additional_symbols()
 
-    #TODO effizienter implementieren. 
+    #TODO: all die sachen effizienter implementieren. 
     #ev. callbacks die an den einzelnen stellen registriert werden
-    prepare_list_heads()
+
+    if linked_lists:
+      prepare_list_heads()
+
     prepare_strings()
     prepare_void_references(types)
 

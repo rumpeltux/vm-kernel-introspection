@@ -63,12 +63,12 @@ class NullTerminatedArray(Array):
 	  yield member, member_loc
 	  i += 1
 
-class KernelLinkedList(Struct):
+class KernelDoubleLinkedList(Struct):
     "Implements the linked lists which the kernel uses using preprocessor macros"
     
     parent = None
     offset = 0
-    entries = {}
+    entries = {'next': 0, 'prev': 8}
 
     def __init__(self, struct, member, offset=None, name=None):
 	"""
@@ -80,7 +80,7 @@ class KernelLinkedList(Struct):
 	self.type_list = struct.type_list
 	self._parent   = struct.id
 	self.offset    = offset if offset is not None else member.offset
-	self.name      = member.name # "list_head(%s)" % struct.get_name()
+	self.name      = "list_head(%s)" % member.name # "list_head(%s)" % struct.get_name()
     def takeover(self, member):
 	"replaces all occurances of member in the global type list with this entry"
 	if member.offset != self.offset:
@@ -151,8 +151,3 @@ class KernelLinkedList(Struct):
 	  out[key] = self[key]
 	return out
 
-class KernelSingleLinkedList(KernelLinkedList):
-    entries = {'next': 0}
-
-class KernelDoubleLinkedList(KernelLinkedList):
-    entries = {'next': 0, 'prev': 8}

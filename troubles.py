@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # analises trouble areas and prints dump statistics
 from xml.dom.minidom import Document
-
+from tools.xml import XMLReport
 from tools import *
 
 def base_check(typ, backtrace=None):
@@ -32,19 +32,7 @@ def check_node_for_pointers(node):
     return counter
 
 def generate_report():
-    doc = Document()
-    
-    #some xml helpers
-    def add(node, name):
-	elem = doc.createElement(name)
-	node.appendChild(elem)
-	return elem
-      
-    text = lambda node, text: node.appendChild(doc.createTextNode(text))
-    
-    def set_node_info(node, typ):
-	node.setAttribute("type-id", hex(typ.id))
-	node.setAttribute("name", typ.get_name())
+    report = XMLReport('report')
 
     def save_parents(s, node, v=None, d=0):
 	"""
@@ -52,8 +40,8 @@ def generate_report():
 	"""
 	if v is None: v = set([s.id])
 	if len(s.parents) == 0 or d>1: return
-	p = add(node, "parent")
-	set_node_info(p, s)
+	p = report.add("parent", node)
+	report.set_node_info(s, p)
 	
 	for i in s.parents:
 	  if not i.id in v:
@@ -66,26 +54,24 @@ def generate_report():
     #summary
     errors    = {'bound': 0, 'key': 0, 'size': 0, 'base': 0, 'hashtables': 0, 'hash_nodes': 0}
 
-    report = add(doc, "report")
-    
     #go arrays!
-    doc_arrays = add(report, "arrays")
+    doc_arrays = report.add("arrays")
     arrays    = filter(lambda t: isinstance(t, Array), types.values())
 
     for a in arrays:
 	if a.bound is None:
 	    errors['bound'] += 1
-	    bound = add(doc_arrays, "bound")
-	    set_node_info(bound, a)
+	    bound = report.add("bound", doc_arrays)
+	    report.set_node_info(a, bound)
 	    save_parents(a, bound)
 	if a.get_element_size() is None:
-	    size = add(doc_arrays, "size")
-	    set_node_info(size, a)
+	    size = report.add("size", doc_arrays)
+	    report.set_node_info(a, size)
 	    text(size, a)
 	    errors['size'] += 1
 
     #go hashtables!
-    doc_hash = add(report, "hashtables")
+    doc_hash = report.add("hashtables")
     structs = filter(lambda t: isinstance(t, Struct), types.values())
     h_nodes = {}
     h_tables = {}
@@ -95,13 +81,13 @@ def generate_report():
     for s in structs:
 	for m in s:
 	    if m.base and m.get_base().name == "hlist_node":
-		node = add(doc_hash, "hlist_node")
-		set_node_info(node, s)
+		node = report.add("hlist_node", doc_hash)
+		report.set_node_info(s, node)
 		node.setAttribute("size", str(s.size))
 		node.setAttribute("pointers", str(check_node_for_pointers(s)))
 		
-		member = add(node, "member")
-		set_node_info(member, m)
+		member = report.add("member", node)
+		report.set_node_info(m, member)
 		
 		h_nodes[m.id] = 1
 		errors['hash_nodes'] += 1
@@ -110,8 +96,8 @@ def generate_report():
     # these are entry points to hashtables
     for s in types.values():
 	if s.name == "hlist_head":
-	    node = add(doc_hash, "hlist_head")
-	    set_node_info(node, s)
+	    node = report.add("hlist_head", doc_hash)
+	    report.set_node_info(node, s)
 	    save_parents(s, node)
 	    
 	for m in s.bases():
@@ -133,13 +119,13 @@ def generate_report():
 		  ##print " (x) hash_node in %s\t(%s)\t(%s)" % (s.get_name(), get_parent_names(s), ", ".join([i.get_name() for i in s.bases()]))
 		  #break
 
-    doc_sum = add(report, "summary")
+    doc_sum = report.add("summary")
     for (k,v) in errors.iteritems():
       add(doc_sum, k).setAttribute("count", str(v))
     
-    return doc
+    return report
     
 if __name__ == "__main__":
     names, types, addresses = init(parents=True)
     
-    print generate_report().toprettyxml(indent="  ")
+    print generate_report()
