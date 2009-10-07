@@ -539,7 +539,7 @@ class Pointer(BasicType):
 	comparator.just_add_rev(sympath + " (" + self.type_list[self.base].get_name() + ")", self, loc)
 
 class Typedef(Type):
-    def resolve(self, loc, depth=MAX_DEPTH):
+    def resolve(self, loc=None, depth=MAX_DEPTH):
 	if depth > 20: raise RecursingTypeException("recursing type...")
 	return self.type_list[self.base].resolve(loc, depth-1)
 #    def value(self, loc, depth=MAX_DEPTH):
