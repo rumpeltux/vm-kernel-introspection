@@ -7,8 +7,11 @@ class String(Array):
     
     should be initialised with a Char-Array or Pointer to Char
     e.g.
-	String(Array(type_of('unsigned char')))
-	String(Pointer(type_of('char')))
+	s = String(Array(type_of('unsigned char')))
+	s = String(Pointer(type_of('char')))
+
+    s will be a volatile type that cannot be referenced by other types
+    unless s.register() is called
     """
     def __init__(self, typ):
 	self.type_list = typ.type_list
@@ -60,19 +63,24 @@ class NullTerminatedArray(Array):
 	  yield member, member_loc
 	  i += 1
 
-class KernelLinkedList(Struct):
+class KernelDoubleLinkedList(Struct):
     "Implements the linked lists which the kernel uses using preprocessor macros"
     
     parent = None
     offset = 0
-    entries = {}
+    entries = {'next': 0, 'prev': 8}
 
-    def __init__(self, struct, member):
-	"initialises the linked list entry"
+    def __init__(self, struct, member, offset=None, name=None):
+	"""
+	initialises the linked list entry
+	member is a Member instance for the list_head entry that is to be replaced
+	if no offset is specified, member.offset will be used
+	the name is entirely optional
+	"""
 	self.type_list = struct.type_list
 	self._parent   = struct.id
-	self.offset    = member.offset
-	self.name      = member.name # "list_head(%s)" % struct.get_name()
+	self.offset    = offset if offset is not None else member.offset
+	self.name      = "list_head(%s)" % member.name # "list_head(%s)" % struct.get_name()
     def takeover(self, member):
 	"replaces all occurances of member in the global type list with this entry"
 	if member.offset != self.offset:
@@ -114,6 +122,7 @@ class KernelLinkedList(Struct):
 	    if loc != loc1:
 		    return False
 	    next_offset = 0
+	    #TODO: no more special handling required
 	    if self.name == "children":
 		next_offset = -16
 	    try:	
@@ -146,8 +155,3 @@ class KernelLinkedList(Struct):
 	  out[key] = self[key]
 	return out
 
-class KernelSingleLinkedList(KernelLinkedList):
-    entries = {'next': 0}
-
-class KernelDoubleLinkedList(KernelLinkedList):
-    entries = {'next': 0, 'prev': 8}

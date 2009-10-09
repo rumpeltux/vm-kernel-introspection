@@ -6,11 +6,19 @@ from c_types.user_types import *
 
 from memory_manager import *
 import os
+from cPickle import load
 
 #type_of_address = lambda y: types[memory[y]]
+
+#creates a new memory instance of type type at the same location as memory
 cast = lambda memory, type: Memory(memory.get_loc(), type)
-type_of = lambda name: types[names[name]]
+#returns the first suiting type named name
+type_of = lambda name: types[names[name][0]]
+#returns all types named name
+types_of = lambda name: [types[i] for i in names.get(name, [])]
+#creates a pointer to the first suiting type named name
 pointer_to = lambda name: Pointer(type_of(name), types)
+#returns a memory instance of a global kernel variable named name
 kernel_name = lambda name: Memory(*addresses[name])
 
 def get_parent_names(s, v=None, d=0):
@@ -62,26 +70,29 @@ def handle_array(array, member, struct, cls):
   #cannot delete it because it might be referenced by other structs!
   #del types[member.id]
 
-def prepare_list_heads():
-  """
-  kernel lists are a special thing and need special treatment
-  this routine replaces all members of type struct list_head with
-  an appropriate replacement that takes care handling these lists
-  """
+from linked_lists import *
+
+def prepare_list_heads_todo():
   
-  member_list = []
-  array_handlers = []
   for k,v in types.iteritems():
     if isinstance(v, Struct):
       for member in v:
 	lh = member.get_base()
 	if lh and lh.name:
 	  if lh.name == "list_head":
-	    member_list.append((KernelDoubleLinkedList(v, member), member))
+	    print "checking '%s'.'%s'" % (v.get_name(), member.get_name()),
+	    name = '%s.%s' % (v.get_name(), member.get_name())
+	    if name in refs:
+	      print "found at %s → '%s'.'%s'" % (refs[name][0], refs[name][3], refs[name][4])
+	      #print get_type(refs[name][3], refs[name][4])
+	    else:
+	      print "not found"
+	    #member_list.append((KernelDoubleLinkedList(v, member), member))
 	if isinstance(lh, Array) and lh.get_base():
 	  ar_lh = lh.get_base()
 	  if ar_lh.name == "list_head":
-	    array_handlers.append((lh, member, v, KernelDoubleLinkedList))
+	    print "not yet handling array at '%s'.'%s'" % (v.get_name(), member.get_name())
+	    #array_handlers.append((lh, member, v, KernelDoubleLinkedList))
 
   for val in array_handlers:
     handle_array(*val)
@@ -104,9 +115,8 @@ def prepare_strings():
 
     for s,v in typ_list:
       s.takeover(v)
-	    
 
-def init(filename=None, parents=False, system_map=False):
+def init(filename=None, parents=False, system_map=False, linked_lists=False):
     """
     helper function to initialise a dump-session.
 
@@ -115,6 +125,8 @@ def init(filename=None, parents=False, system_map=False):
     if system_map if set to a filename, this file is interpreted as
       a System.map and all its symbols will become available in the program (TODO)
       additionally other sources to load symbols will be loaded from the memory image
+    if linked_lists is set, the information created by type_relater.py will
+      be read, to auto associate kernel linked list information
     """
     import memory, type_parser
     global types, names, addresses
@@ -129,7 +141,7 @@ def init(filename=None, parents=False, system_map=False):
 
     names = {}
     for k,v in types.iteritems():
-      names[v.name] = k
+      names[v.name] = names.get(v.name, []) + [k]
 
     addresses = {}
     for k,v in memory.iteritems():
@@ -145,9 +157,12 @@ def init(filename=None, parents=False, system_map=False):
       #TODO: load_system_map(system_map)
       load_additional_symbols()
 
-    #TODO effizienter implementieren. 
+    #TODO: all die sachen effizienter implementieren. 
     #ev. callbacks die an den einzelnen stellen registriert werden
-    prepare_list_heads()
+
+    if linked_lists:
+      prepare_list_heads()
+
     prepare_strings()
     prepare_void_references(types)
 

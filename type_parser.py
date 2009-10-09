@@ -35,7 +35,7 @@ def cleanup(types):
 	types[id] = types[groups[typ.id]]
     print "index updated"
 
-def read_types(f):
+def read_types(f, save_line_information=False):
     """
     read file f which is the output of `objdump -g kernel' and parse its structures.
     returns two dictionaries: (memory, types)
@@ -97,6 +97,10 @@ def read_types(f):
 		    else:
 		      cls = classes.get(info['tag'], Type)
                     this = cls(info, types)
+		    
+		    if save_line_information:
+		      this.line = int(info.get('decl_line', -1))+1 #0-based
+		      this.file = int(info.get('decl_file', 0))
 		
 		types[info['id']] = this
                 
