@@ -3,6 +3,12 @@ import re
 from tools import *
 from tools.xml_report import XMLReport
 
+def ll_name(a, b):
+  b = re.sub(r'\[.+?\]', '[]', b) #replace any indexes in array notation
+  if a is not None:
+      return a+'.'+b
+  return b
+
 def load_references(filename="meta_info.dump"):
   refs = load(open(filename))
   out = {}
@@ -10,11 +16,8 @@ def load_references(filename="meta_info.dump"):
   for i in refs:
     if i[2] is None:
       i = (i[0], i[2], i[1], i[3], i[4])
-    b = re.sub(r'\[.+?\]', '[]', i[2]) #replace any indexes in array notation
-    if i[1] is not None:
-      out[i[1]+'.'+b] = i
-    else:
-      out[b] = i
+    name = ll_name(i[1], i[2])
+    out[name] = out.get(name, []) + [i]
   return out
 
 def name_resolver(name, bases=None):
@@ -129,7 +132,8 @@ def prepare_list_heads(do_report=False):
       return str(res if len(res) < 5 else res[:5] + ["..."]).replace('>', '}').replace('<', '{')
       
   refs = load_references()
-  for name, (line, a,b, c,d) in refs.iteritems():
+  for name, named_refs in refs.iteritems():
+   for (line, a,b, c,d) in named_refs:
     try:
       source_chains = name_resolver(name)
       #print name, ":", a
@@ -172,9 +176,15 @@ def prepare_list_heads(do_report=False):
 	  if len(chain[-2].parents) > 1:
 	    log('multiple-parents', (i, chain[-2].parents), name, line, source_chains, target_chains, a, b, c, d)
 	    
-	    
+	  tail = chain[-1]
+	  if isinstance(tail, KernelDoubleLinkedList):
+	    print "already registered", repr(tail)
+	    if tail.offset != res[0][2]:
+	      log('different-offset', (tail, res), name, line, chain, target_chains, a, b, c, d)
+	    continue
 	  #TODO: here we still assume all target-chains are equal. are they?
-	  new_tail = KernelDoubleLinkedList(res[0][0], chain[-2], res[0][2])
+	  new_tail = KernelDoubleLinkedList(res[0][0], chain[-2], res[0][2]) #struct, member, offset
+	  log('SUCCESS', None, name, line, chain, target_chains, a, b, c, d)
 	  clone_and_replace(chain, new_tail)
 	#TODO Arrays: [[<c_types.Variable instance 'ptype_base'>, <c_types.Array instance 'list_head'>, <c_types.Struct instance 'list_head'>, <c_types.Struct instance 'list_head'>]]
 	#errors = [i for i in a if i[-1].name != 'list_head']

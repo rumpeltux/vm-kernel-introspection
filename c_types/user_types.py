@@ -80,7 +80,7 @@ class KernelDoubleLinkedList(Struct):
 	self.type_list = struct.type_list
 	self._parent   = struct.id
 	self.offset    = offset if offset is not None else member.offset
-	self.name      = "list_head(%s)" % member.name # "list_head(%s)" % struct.get_name()
+	self.name      = "list_head(%s)" % struct.name # "list_head(%s)" % struct.get_name()
     def takeover(self, member):
 	"replaces all occurances of member in the global type list with this entry"
 	if member.offset != self.offset:
@@ -148,6 +148,10 @@ class KernelDoubleLinkedList(Struct):
 	# override this, since Struct.value will use the types name, which we suppress
 	out = {}
 	for key in self.entries:
-	  out[key] = self[key]
+	  member, loc = self.__getitem__(key, loc)
+	  out[key] = member.value(loc, MAX_DEPTH-1)
 	return out
+
+    def __repr__(self):
+	return "<%s instance '%s' offset %d>" % (self.__class__, self.get_name(), self.offset)
 
