@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 from tools import *
 
-names, types, addresses = init("/dev/mem", parents=True)
-it = kernel_name('init_task')
-print it.to_xml()
+names, types, addresses = init("kvm/memory", parents=True, linked_lists=True)
+m = kernel_name('modules')
+print m
+print m.to_xml()
 
   #"/dev/mem"
   #"../ubuntu_memdump_before_terminal.dump"
