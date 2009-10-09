@@ -111,6 +111,8 @@ class KernelLinkedList(Struct):
 	    yield self.parent(self.get_pointer_value(loc,offset))
 
     def memcmp(self, loc, loc1, comparator, sympath=""):
+	    if loc != loc1:
+		    return False
 	    next_offset = 0
 	    if self.name == "children":
 		next_offset = -16
@@ -127,10 +129,12 @@ class KernelLinkedList(Struct):
 		    return True
 	    # TODO: ignore lists, since they cause many problems ...
 	    return True
+	    if self.get_name() != "list" or self.parent().get_name() != "modules":
+		    return True
 	    comparator.enqueue_diff(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
     
     def revmap(self, loc, comparator, sympath=""):
-	    comparator.just_add_rev(sympath + "." + self.get_name(), self, loc)
+	    comparator.just_add_rev(sympath + "." + self.get_name(), self, loc, self.get_size())
 
     def stringy(self, depth=0):
 	return "\n".join(["\t%s → %s" % (name, self[name].__str__(depth+1).replace("\n", "\n\t"))

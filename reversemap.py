@@ -41,7 +41,7 @@ if __name__=='__main__':
 
   symcounter = 0
   errorcounter = 0
-  grevmap = set([])
+  grevmap = []
 
   print "calculating reverse maps:"
   totallen = len(addresses)
@@ -52,9 +52,10 @@ if __name__=='__main__':
 	symcounter += 1
 	p = Memory(*v) 
 	if pos % 10 == 0:
-		print pos, "/", totallen, ": ", k, "\r",
+		print pos, "/", totallen, ": ", k, " "*(40), "\r",
 	revmap, faults = p.revmap()
-	grevmap.union(revmap)
+	grevmap[-1:] = revmap
+	#grevmap.append(revmap)
 #	grevmap = cleanup(grevmap)
 	symcounter += len(revmap)
 	errorcounter += faults
@@ -64,5 +65,5 @@ if __name__=='__main__':
   print "total symbols: %i, errors: %i" % (symcounter, errorcounter)
 
   print "saving revmap to ", dumpfile
-  dump(revmap, fdump) 
+  dump(grevmap, fdump) 
   print "done"

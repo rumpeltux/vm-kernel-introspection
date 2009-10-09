@@ -81,7 +81,7 @@ class Comparator():
 	def __init__(self):
 		self.queue = []
 		self.seen = set([])
-		self.revmap_set = set([])
+		self.revmap_set = []
 		self.slock = Lock()
 		self.qlock = Lock()
 		self.flock = Lock()
@@ -110,17 +110,17 @@ class Comparator():
 		self.slock.release()
 		return
 	
-	def just_add_rev(self, sympath, type, loc):
+	def just_add_rev(self, sympath, type, loc, size):
 		"""
 		Just add the symbol and location to the seen list
 		"""
 		self.slock.acquire()
 		self.seen.add(loc)
-		self.revmap_set.add((loc, type))
+		self.revmap_set.append((loc, size, type))
 		self.slock.release()
 		return
 
-	def enqueue_rev(self, sympath, type, loc):
+	def enqueue_rev(self, sympath, type, loc, size):
 		"""
 		Enqueue an item to the reverse mapping jobs list
 		"""
@@ -130,7 +130,7 @@ class Comparator():
 			return
 		self.qlock.acquire()
 		self.seen.add(loc)
-		self.revmap_set.add((loc, type))
+		self.revmap_set.append((loc, size, type))
 		self.queue.append((sympath, type, loc))
 		self.qlock.release()
 		self.slock.release()

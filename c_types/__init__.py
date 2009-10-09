@@ -62,9 +62,13 @@ class Type:
 	if self.base is not None:
 		comparator.enqueue_diff(sympath + "." + self.type_list[self.base].name, self.type_list[self.base], loc, loc1)
 
+    def get_size(self):
+	"returns size of a type, we need to know the base type and return its size ..."
+	return self.get_base().get_size()
+
     def revmap(self, loc, comparator, sympath=""):
 	if self.base is not None:
-		comparator.enqueue_rev(sympath + "." + self.get_name(), self, loc)
+		comparator.enqueue_rev(sympath + "." + self.get_name(), self, loc, self.get_size())
 
     def register(self):
 	"if this type is manually added, make it is also registered with a valid id in the global type register"
@@ -117,8 +121,12 @@ class Void(Type):
 	# TODO: fix this, cannot be always true, right?
 	return True
 
+    def get_size(self):
+	"returns size of a void* pointer which is sizeof(unsigned long) = 8 on 64 bit"
+	return 8
+
     def revmap(self, loc, comparator, sympath=""):
-	comparator.just_add_rev(sympath + " (" + self.name + ")", self, loc)
+	comparator.just_add_rev(sympath + " (" + self.name + ")", self, loc, self.get_size())
 
     def value(self, loc, depth=MAX_DEPTH):
 	return None
@@ -126,6 +134,10 @@ class Void(Type):
 class SizedType(Type):
     "This is a Type with size-information associated"
     size = 0
+
+    def get_size(self):
+	"since we have a sized type, we can just return its size"
+	return self.size
 
 class Struct(SizedType):
     "This type represents a C-structure. Its members usually have the type Member"
@@ -197,7 +209,7 @@ class Struct(SizedType):
 	for real_member, member_loc in self.__iter__(loc):
 		try:
 			member, member_loc = real_member.resolve(member_loc, MAX_DEPTH-1)
-			comparator.enqueue_rev(sympath + "." + real_member.get_name(), member, member_loc)
+			comparator.enqueue_rev(sympath + "." + real_member.get_name(), member, member_loc, real_member.get_size())
 		except MemoryAccessException, e:
 			# TODO: ignoring errors in members and just continuing with the next
 			pass
@@ -231,7 +243,7 @@ class Union(Struct):
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	return True
     def revmap(self, loc, comparator, sympath=""):
-	comparator.just_add_rev(sympath + " (" + self.get_name() + ")", self, loc) 
+	comparator.just_add_rev(sympath + " (" + self.get_name() + ")", self, loc, self.get_size()) 
 
 class Array(Type):
     "Represents an Array. Including the upper bound"
@@ -267,8 +279,10 @@ class Array(Type):
 	    return
 
     def revmap(self, loc, comparator, sympath=""):
+	    i = 0
 	    for member, member_loc in self.__iter__(loc, MAX_DEPTH):
-		    comparator.enqueue_rev(sympath + "." + member.get_name(), member, member_loc)
+		    comparator.enqueue_rev(sympath + "[" + str(i) + "] (" + member.get_name() + ")", member, member_loc, self.get_element_size())
+		    i += 1
 
     def get_element_size(self):
 	"iterate on base-types and return the first one with size-information or None if no size seems to be known"
@@ -319,8 +333,11 @@ class Function(Type):
 	return KernelFunction(loc, type)
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	return True
+    def get_size(self):
+	"we don't know the size exactly, therefore return sizeof(unsigned long) = 8"
+	return 8
     def revmap(self, loc, comparator, sympath=""):
-	comparator.just_add_rev(sympath + " (" + self.get_name() + ")", self, loc)
+	comparator.just_add_rev(sympath + " (" + self.get_name() + ")", self, loc, self.get_size())
 
 class KernelFunction:
     def __init__(self, location, type):
@@ -347,6 +364,7 @@ class EndOfListPassException(ListAccessException):
   pass
 
 base_type_to_memory = {'int-5': 5, 'char-6': 1, 'None-7': 6, 'long unsigned int-7': 6, 'unsigned int-7': 4, 'long int-5': 7, 'short unsigned int-7': 2, 'long long int-5': 7, 'signed char-6': 1, 'unsigned char-8': 0, 'short int-5': 3, 'long long unsigned int-7': 6, '_Bool-2': 11, 'double-4': 8}
+base_type_to_size = {'int-5': 4, 'char-6': 1, 'None-7': 8, 'long unsigned int-7': 8, 'unsigned int-7': 4, 'long int-5': 8, 'short unsigned int-7': 2, 'long long int-5': 8, 'signed char-6': 1, 'unsigned char-8': 1, 'short int-5': 2, 'long long unsigned int-7': 8, '_Bool-2': 4, 'double-4': 8}
 
 class BasicType(SizedType):
     """
@@ -402,8 +420,16 @@ class BasicType(SizedType):
 	val2 = self.get_value(loc1, base_type_to_memory["%s-%d" % (self.name, self.encoding)], info=self, image=1)
 	return val1 == val2
 
+    def get_size(self):
+	"return the size according to base type"
+	try:
+		return base_type_to_size["%s-%d" % (self.name, self.encoding)]
+	except KeyError, e:
+		# the base type was not found therefore we assume long unsigned int
+		return 8
+
     def revmap(self, loc, comparator, sympath=""):
-	comparator.just_add_rev(sympath + " (" + self.name + ")", self, loc)
+	comparator.just_add_rev(sympath + " (" + self.name + ")", self, loc, self.get_size())
 
 class Enum(SizedType):
     enums = {}
@@ -425,7 +451,7 @@ class Variable(Type):
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	comparator.enqueue_diff(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
     def revmap(self, loc, comparator, sympath=""):
-	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc)
+	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, self.get_size())
 
 class Const(Variable):
     pass
@@ -536,7 +562,7 @@ class Pointer(BasicType):
 #	else:
 #		return True
     def revmap(self, loc, comparator, sympath=""):
-	comparator.just_add_rev(sympath + " (" + self.type_list[self.base].get_name() + ")", self, loc)
+	comparator.just_add_rev(sympath + " (" + self.type_list[self.base].get_name() + ")", self, loc, self.get_size())
 
 class Typedef(Type):
     def resolve(self, loc, depth=MAX_DEPTH):
@@ -547,7 +573,7 @@ class Typedef(Type):
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	comparator.enqueue_diff(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
     def revmap(self, loc, comparator, sympath=""):
-	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc)
+	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, self.get_size())
 
 resolve_pointer   = lambda loc, img=0: BasicType.get_value(loc, image=img)
 
