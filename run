@@ -10,7 +10,7 @@ if len(sys.argv) > 1:
 	sys.argv.pop(0)
 
 print '::: Loading symbols, using memory dump from "' + f + '" ...'
-names, types, addresses = init(f)
+names, types, addresses = init(f, parents=True, linked_lists=True)
 print '::: Ready.'
 
 print "it = kernel_name('init_task')"
