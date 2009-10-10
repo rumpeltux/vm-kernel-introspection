@@ -6,6 +6,7 @@ m = kernel_name('modules')
 print m
 print m.to_xml()
 
+
   #"/dev/mem"
   #"../ubuntu_memdump_before_terminal.dump"
 
