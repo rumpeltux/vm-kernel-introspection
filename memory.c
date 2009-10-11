@@ -43,7 +43,7 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 		if(address > fsize) {
 			*errflag = 1;
 //			fprintf(stderr, "memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize, address);
-			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize, (void*)address);
+			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p, image: 0\n", (void*)fsize, (void*)address);
 			return NULL;
 		}
 
@@ -81,8 +81,8 @@ void *memory_access_raw(unsigned long address, int nmap, int *errflag) {
 		
 		if(address > fsize1) {
 			*errflag = 1;
-			fprintf(stderr, "memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize1, address);
-			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p\n", (void*)fsize1, (void*)address);
+			// fprintf(stderr, "memory_access: address outside file size: fsize: %lu, address: %lu\n", fsize1, address);
+			fprintf(stderr, "memory_access: address outside file size: fsize: %p, address: %p, image: 1\n", (void*)fsize1, (void*)address);
 			return NULL;
 		}
 
