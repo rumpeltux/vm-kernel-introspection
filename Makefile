@@ -1,5 +1,5 @@
 
-KERNEL_SOURCE = /usr/src/linux
+KERNEL_SOURCE = ../debkernel/ubuntu-jaunty/
 
 all: memory.c bincmp.c kernel_defines.h
 	python setup.py build

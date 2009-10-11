@@ -132,7 +132,7 @@ def parse_jobfiles(jobdir, onlyjob):
 if __name__ == '__main__':
 	onlyjob = None
 	if len(sys.argv) > 1:
-		onlyjob = sys.argv[2] 
+		onlyjob = sys.argv[1] 
 
 	jobs = parse_jobfiles(jobdir, onlyjob)
 

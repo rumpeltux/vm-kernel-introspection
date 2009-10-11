@@ -195,7 +195,7 @@ unsigned long phys_base = 0;
  */
 unsigned long init_level4_pgt_start = 0xffffffff80201000;
 
-// #define VERBOSEDEBUG 1
+#define VERBOSEDEBUG 1
 
 /* errflag will be set to 1 on error will be set to 2 if page is not 
  * present
