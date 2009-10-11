@@ -10,7 +10,7 @@ if __name__=='__main__':
   refimg = sys.argv[1]
   newimg = sys.argv[2]
 
-  types, names, addresses = init(refimg)
+  types, names, addresses = init(refimg, parents=True, linked_lists=True)
 
   filesize = 4 * 1024**3 if newimg == "/dev/mem" else os.path.getsize(newimg)
   memory.map(newimg, filesize, filesize, 1)
@@ -21,11 +21,12 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('default_backing_dev_info')
+  temp = kernel_name('sys_call_table')
 #  temp = kernel_name('cdrom_sysctl_header')
 #  temp = kernel_name('sg_index_idr')
-#  print temp.memcmp()
-#  sys.exit(0)
+  temp = temp.resolve()
+  print temp.memcmp()
+  sys.exit(0)
 
   symcounter = 0
   samecounter = 0

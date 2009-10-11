@@ -21,7 +21,7 @@ class ComparatorThread(Thread):
 		while len(tasks) > 0:
 			while len(tasks) > 0:
 				sympath, type, loc, loc1 = tasks.pop(0)
-#				print hex(loc), ": ", sympath, "lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
+#				print hex(loc), ": ", sympath, "t:", repr(type), ",lq: ", len(tasks), ",q: ", len(self.comparator.queue), ",s: ", len(self.comparator.seen)
 				try:
 					self.compared += 1
 					r = type.memcmp(loc, loc1, self.comparator, sympath)
@@ -36,6 +36,11 @@ class ComparatorThread(Thread):
 				except MemoryAccessException, e:
 					self.comparator.finc()
 					pass
+#				except AttributeError, e:
+#					# TODO: where does that come from?
+#					print "attr error"
+#					self.comparator.finc()
+#					pass
 			tasks = self.comparator.fetch_tasks()
 		return
 
@@ -80,7 +85,8 @@ class Comparator():
 	"""
 	def __init__(self):
 		self.queue = []
-		self.seen = set([])
+		self.seen = {}
+		self.seen_rev = set([])  
 		self.revmap_set = []
 		self.slock = Lock()
 		self.qlock = Lock()
@@ -100,11 +106,16 @@ class Comparator():
 		Enqueue an item to the compare list
 		"""
 		self.slock.acquire()
-		if loc in self.seen:
-			self.slock.release()
-			return
+		try:
+			if self.seen[type] != None:
+				if loc in self.seen[type]:
+					self.slock.release()
+					return
+				else:
+					self.seen[type].add(loc)
+		except KeyError, e:
+			self.seen[type] = set([loc])
 		self.qlock.acquire()
-		self.seen.add(loc)
 		self.queue.append((sympath, type, loc, loc1))
 		self.qlock.release()
 		self.slock.release()
@@ -115,7 +126,7 @@ class Comparator():
 		Just add the symbol and location to the seen list
 		"""
 		self.slock.acquire()
-		self.seen.add(loc)
+		self.seen_rev.add(loc)
 		self.revmap_set.append((loc, size, type))
 		self.slock.release()
 		return
@@ -125,11 +136,11 @@ class Comparator():
 		Enqueue an item to the reverse mapping jobs list
 		"""
 		self.slock.acquire()
-		if loc in self.seen:
+		if loc in self.seen_rev:
 			self.slock.release()
 			return
 		self.qlock.acquire()
-		self.seen.add(loc)
+		self.seen_rev.add(loc)
 		self.revmap_set.append((loc, size, type))
 		self.queue.append((sympath, type, loc))
 		self.qlock.release()
@@ -164,7 +175,7 @@ class Comparator():
 		return (self.revmap_set, self.faults)
 
 
-	def run(self, num_threads=3):
+	def run(self, num_threads=1):
 		"""
 		run comparision until queue ist empty
 		"""

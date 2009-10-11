@@ -35,7 +35,7 @@ class Type:
 	"""
 	if self.base in self.type_list:
 	      return self.type_list[self.base]
-    def resolve(self, loc=None, depth=MAX_DEPTH):
+    def resolve(self, loc=None, depth=MAX_DEPTH, image=0):
 	"""
 	resolve the type
 
@@ -60,7 +60,7 @@ class Type:
 
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	if self.base is not None:
-		comparator.enqueue_diff(sympath + "." + self.type_list[self.base].name, self.type_list[self.base], loc, loc1)
+		comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].name + ")" + self.get_name(), self.type_list[self.base], loc, loc1)
 
     def get_size(self):
 	"returns size of a type, we need to know the base type and return its size ..."
@@ -195,7 +195,7 @@ class Struct(SizedType):
 			if member_loc == 0 or member_loc1 == 0:
 				i += 1
 				continue
-			comparator.enqueue_diff(sympath + "." + real_member.get_name(), member, member_loc, member_loc1)
+			comparator.enqueue_diff(sympath + ".(" + real_member.get_type().get_name() + ")" + real_member.get_name(), member, member_loc, member_loc1)
 		except UserspaceVirtualAddressException, e:
 			pass
 		except NullPointerException, e:
@@ -274,7 +274,7 @@ class Array(Type):
 	    i = 0
 	    for member, member_loc in self.__iter__(loc, MAX_DEPTH):
 		    member1, member_loc1 = self.__getitem__(i, loc1, MAX_DEPTH)
-		    comparator.enqueue_diff(sympath + "." + member.get_name(), member, member_loc, member_loc1)
+		    comparator.enqueue_diff(sympath + "[" + str(i) + "] (" + member.get_name() + ")", member, member_loc, member_loc1)
 		    i += 1
 	    return
 
@@ -332,7 +332,7 @@ class Function(Type):
 	"returns a callable function object"
 	return KernelFunction(loc, type)
     def memcmp(self, loc, loc1, comparator, sympath=""):
-	return True
+	return loc == loc1
     def get_size(self):
 	"we don't know the size exactly, therefore return sizeof(unsigned long) = 8"
 	return 8
@@ -444,12 +444,12 @@ class Enumerator(Type):
         return "%d (%s)" % (self.const, self.name)
             
 class Variable(Type):
-    def resolve(self, loc=None, depth=MAX_DEPTH):
-	return self.type_list[self.base].resolve(loc, depth)
+    def resolve(self, loc=None, depth=MAX_DEPTH, image=0):
+	return self.type_list[self.base].resolve(loc, depth, image=image)
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, loc1, comparator, sympath=""):
-	comparator.enqueue_diff(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
+	comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].get_name() + ")" + self.get_name(), self.type_list[self.base], loc, loc1)
     def revmap(self, loc, comparator, sympath=""):
 	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, self.get_size())
 
@@ -468,16 +468,16 @@ class Pointer(BasicType):
 	self.type_list = info.type_list
 	self.register()
 	
-    def resolve(self, loc=None, depth=MAX_DEPTH):
+    def resolve(self, loc=None, depth=MAX_DEPTH, image=0):
 	_loc = loc
 	if _loc is not None:
 	    try:
-		_loc = self.get_value(loc, info=self) # unsigned long
+		_loc = self.get_value(loc, info=self, image=image) # unsigned long
 	    except (UserspaceVirtualAddressException, NullPointerException), e:
 		return (self, loc)
 	
 	if self.base is not None and _loc != 0:
-	      return self.type_list[self.base].resolve(_loc, depth-1)
+	      return self.type_list[self.base].resolve(_loc, depth-1, image)
 	else:
 	      return (self, loc)
     def get_type_name(self):
@@ -565,20 +565,23 @@ class Pointer(BasicType):
 	comparator.just_add_rev(sympath + " (" + self.type_list[self.base].get_name() + ")", self, loc, self.get_size())
 
 class Typedef(Type):
-    def resolve(self, loc=None, depth=MAX_DEPTH):
+    def resolve(self, loc=None, depth=MAX_DEPTH, image=0):
 	if depth > 20: raise RecursingTypeException("recursing type...")
-	return self.type_list[self.base].resolve(loc, depth-1)
+	return self.type_list[self.base].resolve(loc, depth-1, image)
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth-1)
     def memcmp(self, loc, loc1, comparator, sympath=""):
-	comparator.enqueue_diff(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, loc1)
+	tuple = self.type_list[self.base].resolve(loc, MAX_DEPTH, 0)
+	tuple1 = self.type_list[self.base].resolve(loc1, MAX_DEPTH, 1)
+	comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].get_name() + ")" + self.get_name(), tuple[0], tuple[1], tuple1[1])
     def revmap(self, loc, comparator, sympath=""):
-	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, self.get_size())
+	tuple = self.type_list[self.base].resolve(loc, MAX_DEPTH)
+	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), tuple[0], tuple[1], self.get_size())
 
 resolve_pointer   = lambda loc, img=0: BasicType.get_value(loc, image=img)
 
 class UnwantedType(Type):
-    def resolve(self, loc=None, depth=MAX_DEPTH):
+    def resolve(self, loc=None, depth=MAX_DEPTH, image=0):
 	if self.base is not None and self.base in self.type_list:
-	  return self.type_list[self.base].resolve(loc, depth)
+	  return self.type_list[self.base].resolve(loc, depth, image)
 	return self

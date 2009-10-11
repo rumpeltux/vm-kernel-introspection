@@ -124,7 +124,7 @@ Members are conveniently accessable:
 	Uses the Comparator class to compare the two memory images.
 	"""
 	comparator = Comparator()
-	self.__type.memcmp(self.__loc, self.__loc, comparator, self.__type.name)
+	self.__type.memcmp(self.__loc, self.__loc, comparator, self.__type.get_name())
 	return comparator.run()
     def revmap(self):
 	"""
