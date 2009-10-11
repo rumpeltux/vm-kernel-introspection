@@ -95,7 +95,7 @@ def waitready():
 
 
 
-def parse_jobfiles(jobdir):
+def parse_jobfiles(jobdir, onlyjob):
 	jobs = []
 	jobfiles = os.listdir(jobdir)
 
@@ -105,6 +105,9 @@ def parse_jobfiles(jobdir):
 	for file in jobfiles:
 		job = Job()
 		f = open(jobdir + "/" + file)
+		if onlyjob:
+			if file != onlyjob:
+				continue
 		for line in f:
 			ret = fname_pat.search(line)
 			if not ret:
@@ -127,7 +130,11 @@ def parse_jobfiles(jobdir):
 	return jobs
 
 if __name__ == '__main__':
-	jobs = parse_jobfiles(jobdir)
+	onlyjob = None
+	if len(sys.argv) > 1:
+		onlyjob = sys.argv[2] 
+
+	jobs = parse_jobfiles(jobdir, onlyjob)
 
 	if len(jobs) <= 0:
 		print "no jobs found in ", jobdir

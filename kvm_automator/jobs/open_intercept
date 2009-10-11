@@ -1,0 +1,4 @@
+file: /home/domi/kvm/rootkits/ported_rootkits/open_intercept.tar.bz2
+command: tar xjf open_intercept.tar.bz2
+command: insmod open_intercept/test.ko
+
