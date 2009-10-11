@@ -2,7 +2,7 @@
 #
 
 if [ $# -le 1 ] ; then
-	echo "usage: $0 <output text dump filename> <symbol name"
+	echo "usage: $0 <output text dump filename> <symbol name>"
 	exit 1
 fi
 
