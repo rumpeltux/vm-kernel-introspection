@@ -73,14 +73,20 @@ def handle_array(array, member, struct, cls):
 from linked_lists import *
 
 def prepare_list_heads_todo():
-  
+  from xml_report import XMLReport
+  rep = XMLReport('list-heads')
+  success = rep.add('success')
+  remaining = rep.add('remaining')
   for k,v in types.iteritems():
     if isinstance(v, Struct):
       for member in v:
 	lh = member.get_base()
 	if lh and lh.name:
 	  if lh.name == "list_head":
-	    print "checking '%s'.'%s'" % (v.get_name(), member.get_name()),
+	    rep.add("'%s'.'%s'" % (v.get_name(), member.get_name()), remaining) #print "checking '%s'.'%s'" % (v.get_name(), member.get_name())
+	  elif isinstance(lh, KernelDoubleLinkedList):
+	    rep.add("'%s'.'%s'" % (v.get_name(), member.get_name()), success) #print "skipping '%s'.'%s'" % (v.get_name(), member.get_name())
+	  if 0:
 	    name = '%s.%s' % (v.get_name(), member.get_name())
 	    if name in refs:
 	      print "found at %s → '%s'.'%s'" % (refs[name][0], refs[name][3], refs[name][4])
