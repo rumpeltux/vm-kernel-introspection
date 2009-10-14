@@ -452,7 +452,10 @@ class Variable(Type):
 #    def value(self, loc, depth=MAX_DEPTH):
 #	return self.type_list[self.base].value(loc, depth)
     def memcmp(self, loc, loc1, comparator, sympath=""):
-	comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].get_name() + ")" + self.get_name(), self.type_list[self.base], loc, loc1)
+	tuple = self.resolve(loc, MAX_DEPTH)
+	tuple1 = self.resolve(loc1, MAX_DEPTH, 1)
+	comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].get_name() + ")" + self.get_name() + ".(" + tuple[0].get_name() + ")" + tuple[0].get_name(), tuple[0], tuple[1], tuple[1])
+
     def revmap(self, loc, comparator, sympath=""):
 	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), self.type_list[self.base], loc, self.get_size())
 

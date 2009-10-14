@@ -21,12 +21,12 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-#  temp = kernel_name('sys_call_table')
+  temp = kernel_name('sys_call_table')
 #  temp = kernel_name('cdrom_sysctl_header')
 #  temp = kernel_name('sg_index_idr')
 #  temp = temp.resolve()
-#  print temp.memcmp()
-#  sys.exit(0)
+  print temp.memcmp()
+  sys.exit(0)
 
   symcounter = 0
   samecounter = 0
