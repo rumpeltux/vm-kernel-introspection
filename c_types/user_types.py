@@ -123,8 +123,8 @@ class KernelDoubleLinkedList(Struct):
 		    return False
 	    next_offset = 0
 	    #TODO: no more special handling required
-	    if self.name == "children":
-		next_offset = -16
+#	    if self.name == "children":
+#		next_offset = -16
 	    try:	
 		    if loc is None:
 			    next_tuple = self.parent()
@@ -137,9 +137,9 @@ class KernelDoubleLinkedList(Struct):
             except EndOfListException, e:
 		    return True
 	    # TODO: ignore lists, since they cause many problems ...
-	    return True
-	    if self.get_name() != "list" or self.parent().get_name() != "modules":
-		    return True
+#	    return True
+#	    if self.get_name() != "list" or self.parent().get_name() != "modules":
+#		    return True
 	    comparator.enqueue_diff(sympath + ".next", next_tuple[0], next_tuple[1], next1_tuple[1])
     
     def revmap(self, loc, comparator, sympath=""):
