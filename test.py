@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from tools import *
 
-names, types, addresses = init("kvm/memory", parents=True, linked_lists=True)
-m = kernel_name('modules')
-print m
-print m.to_xml()
+names, types, addresses = init("kvm_automator/memdump_before", parents=True, linked_lists=True)
+#m = kernel_name('modules')
+#print m
+#print m.to_xml()
+
+for i in addresses:
+	print i
 
 
   #"/dev/mem"
