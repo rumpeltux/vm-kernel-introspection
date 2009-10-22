@@ -21,12 +21,10 @@ if __name__=='__main__':
 # recursionlimit at 1000 per default, but thats not enough
   sys.setrecursionlimit(8000)
 
-  temp = kernel_name('sys_call_table')
-#  temp = kernel_name('cdrom_sysctl_header')
-#  temp = kernel_name('sg_index_idr')
-#  temp = temp.resolve()
-  print temp.memcmp()
-  sys.exit(0)
+# example: for only comparing one toplevel symbol
+#  temp = kernel_name('sys_call_table')
+#  print temp.memcmp()
+#  sys.exit(0)
 
   symcounter = 0
   samecounter = 0
@@ -35,6 +33,11 @@ if __name__=='__main__':
 
   print "differing symbols:"
   for k,v in addresses.iteritems():
+	  # ignore all the "evil" symbols
+	  # most of them have a "sock" struct inside, which
+	  # may cause some problems
+	if k == "idiagnl" or k == "scsi_nl_sock" or k == "fib6_rules_ops_template" or k == "audit_skb_hold_queue" or k == "genl_sock" or k == "audit_sock" or k == "uevent_sock" or k == "cdev" or k == "init_net":
+		continue
 	if k == None:
 		continue
 	symcounter += 1
@@ -43,17 +46,6 @@ if __name__=='__main__':
 	total, faults = p.memcmp()
 	symcounter += total
 	errorcounter += faults
-#	except MemoryAccessException, e:
-#		print k, ": ", e
-#		errorcounter += 1
-#	except RecursingTypeException, e:
-#		errorcounter += 1
-#	except RuntimeError, e:
-#		errorcounter += 1
-#	except UserspaceVirtualAddressException, e:
-#		errorcounter += 1
-#	except PageNotPresent, e:
-#		errorcounter += 1
 
   print "stats:"
   print "total symbols: %i, stayed same: %i, differring: %i, errors: %i" % (symcounter, samecounter, diffcounter, errorcounter)
