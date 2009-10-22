@@ -277,7 +277,7 @@ class Array(Type):
 	    i = 0
 	    for member, member_loc in self.__iter__(loc, MAX_DEPTH):
 		    member1, member_loc1 = self.__getitem__(i, loc1, MAX_DEPTH)
-		    comparator.enqueue_diff(sympath + "[" + str(i) + "] (" + member.get_name() + ")", member, member_loc, member_loc1)
+		    comparator.enqueue_diff(sympath + "[" + str(i) + "]", member, member_loc, member_loc1)
 		    i += 1
 	    return
 
@@ -579,7 +579,7 @@ class Typedef(Type):
     def memcmp(self, loc, loc1, comparator, sympath=""):
 	tuple = self.type_list[self.base].resolve(loc, MAX_DEPTH, 0)
 	tuple1 = self.type_list[self.base].resolve(loc1, MAX_DEPTH, 1)
-	comparator.enqueue_diff(sympath + ".(" + self.type_list[self.base].get_name() + ")" + self.get_name(), tuple[0], tuple[1], tuple1[1])
+	comparator.enqueue_diff(sympath + ".(" + self.get_name() + ")", tuple[0], tuple[1], tuple1[1])
     def revmap(self, loc, comparator, sympath=""):
 	tuple = self.type_list[self.base].resolve(loc, MAX_DEPTH)
 	comparator.enqueue_rev(sympath + "." + self.type_list[self.base].get_name(), tuple[0], tuple[1], self.get_size())
