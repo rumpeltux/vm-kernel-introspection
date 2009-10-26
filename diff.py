@@ -33,7 +33,7 @@ if __name__=='__main__':
 
   print "differing symbols:"
   for k,v in addresses.iteritems():
-	  # ignore all the "evil" symbols
+	  # ignore all the "evil" symbols (quick and dirty hack)
 	  # most of them have a "sock" struct inside, which
 	  # may cause some problems
 	if k == "idiagnl" or k == "scsi_nl_sock" or k == "fib6_rules_ops_template" or k == "audit_skb_hold_queue" or k == "genl_sock" or k == "audit_sock" or k == "uevent_sock" or k == "cdev" or k == "init_net":
